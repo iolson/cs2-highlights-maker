@@ -1,0 +1,12 @@
+server.dll is the CS2 server plugin from CS Demo Manager
+https://github.com/akiver/cs-demo-manager (cs2-server-plugin/), MIT License.
+
+Copyright (c) Anthony Killer (akiver)
+
+Extracted from the official CS Demo Manager Windows release
+(resources/static/cs2/server.dll). The plugin executes console commands at
+specific demo ticks, driven by a <demo>.json actions file, and is loaded by
+the game via a temporary gameinfo.gi search path entry.
+
+If CS2 updates break demo playback automation, refresh this binary from the
+latest CS Demo Manager release.

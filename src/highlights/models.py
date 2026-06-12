@@ -1,0 +1,154 @@
+"""Core data models shared across parsing, analysis and recording."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+
+@dataclass(frozen=True)
+class Kill:
+    tick: int
+    round_index: int  # 0-based index into DemoData.rounds
+    attacker_steamid: str
+    attacker_name: str
+    attacker_side: str  # "CT" / "T" / ""
+    victim_steamid: str
+    victim_name: str
+    weapon: str
+    headshot: bool = False
+    noscope: bool = False
+    penetrated: int = 0
+    thrusmoke: bool = False
+    attackerblind: bool = False
+
+    @property
+    def is_knife(self) -> bool:
+        return "knife" in self.weapon or self.weapon == "bayonet"
+
+    @property
+    def is_zeus(self) -> bool:
+        return self.weapon == "taser"
+
+    @property
+    def is_awp_noscope(self) -> bool:
+        return self.weapon == "awp" and self.noscope
+
+    @property
+    def is_special(self) -> bool:
+        return (
+            self.is_knife
+            or self.is_zeus
+            or self.is_awp_noscope
+            or self.thrusmoke
+            or self.attackerblind
+        )
+
+
+@dataclass(frozen=True)
+class Round:
+    index: int  # 0-based
+    start_tick: int
+    freeze_end_tick: int
+    end_tick: int  # tick of round_end (round decided)
+    winner: str  # "CT" / "T" / ""
+
+
+@dataclass
+class Clutch:
+    steamid: str
+    name: str
+    side: str
+    opponents: int  # X in "1 v X"
+    won: bool
+    kills: int  # kills made by the clutcher after the clutch started
+    start_tick: int
+    end_tick: int  # round_end tick
+    round_index: int
+
+
+@dataclass
+class Moment:
+    """A burst of action by one player in one round; the unit that gets scored."""
+
+    steamid: str
+    name: str
+    side: str
+    round_index: int
+    kills: list[Kill] = field(default_factory=list)
+    clutch: Clutch | None = None
+    score: float = 0.0
+
+    @property
+    def kill_count(self) -> int:
+        return len(self.kills)
+
+    @property
+    def first_tick(self) -> int:
+        ticks = [k.tick for k in self.kills]
+        if self.clutch is not None:
+            ticks.append(self.clutch.start_tick)
+        return min(ticks)
+
+    @property
+    def last_tick(self) -> int:
+        ticks = [k.tick for k in self.kills]
+        # A won clutch is worth watching until the round is decided.
+        if self.clutch is not None and self.clutch.won:
+            ticks.append(self.clutch.end_tick)
+        return max(ticks)
+
+    def describe(self) -> str:
+        parts: list[str] = []
+        if self.kill_count > 0:
+            weapons = {k.weapon for k in self.kills}
+            weapon = next(iter(weapons)) if len(weapons) == 1 else None
+            kills_part = f"{self.kill_count}K"
+            if self.kill_count == 5:
+                kills_part = "ACE"
+            if weapon:
+                kills_part += f" ({weapon})"
+            parts.append(kills_part)
+        if self.clutch is not None and self.clutch.won:
+            parts.append(f"1v{self.clutch.opponents} clutch")
+        if any(k.is_knife for k in self.kills):
+            parts.append("knife")
+        if any(k.is_zeus for k in self.kills):
+            parts.append("zeus")
+        if any(k.is_awp_noscope for k in self.kills):
+            parts.append("noscope")
+        return ", ".join(parts) if parts else "moment"
+
+
+@dataclass(frozen=True)
+class CameraAction:
+    tick: int
+    steamid: str
+
+
+@dataclass
+class Sequence:
+    """A clip to record: demo tick range plus a camera plan."""
+
+    number: int
+    start_tick: int
+    end_tick: int
+    cameras: list[CameraAction]
+    label: str
+    score: float
+    round_index: int
+    moments: list[Moment] = field(default_factory=list)
+
+    @property
+    def name(self) -> str:
+        return f"{self.number}-sequence"
+
+    def duration_seconds(self, tickrate: float) -> float:
+        return (self.end_tick - self.start_tick) / tickrate
+
+    @property
+    def featured_steamids(self) -> list[str]:
+        seen: list[str] = []
+        for camera in self.cameras:
+            if camera.steamid not in seen:
+                seen.append(camera.steamid)
+        return seen

@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+test-output/
+.research/
+*.mp4
+*.dem
+*.dem.json
+.idea
