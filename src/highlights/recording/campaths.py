@@ -124,14 +124,15 @@ def load_campaths(base: Path, map_name: str) -> list[CamPath]:
     return paths
 
 
-def rank_campaths(campaths: list[CamPath], targets: list[tuple[float, float, float]]) -> list[CamPath]:
-    """Order paths by how close they pass to the action (mean over targets of the
-    nearest path point). Assumes campath space equals demo world space — not yet
+def path_distance(path: CamPath, targets: list[tuple[float, float, float]]) -> float:
+    """How close a path passes to the action: mean over targets of the nearest path
+    point, in world units. Assumes campath space equals demo world space — not yet
     validated in-game."""
+    return sum(min(dist(point, target) for point in path.points) for target in targets) / len(targets)
+
+
+def rank_campaths(campaths: list[CamPath], targets: list[tuple[float, float, float]]) -> list[CamPath]:
+    """Order paths by how close they pass to the action."""
     if not targets:
         return []
-
-    def score(path: CamPath) -> float:
-        return sum(min(dist(point, target) for point in path.points) for target in targets) / len(targets)
-
-    return sorted(campaths, key=lambda path: (score(path), path.name))
+    return sorted(campaths, key=lambda path: (path_distance(path, targets), path.name))

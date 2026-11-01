@@ -16,8 +16,8 @@ from math import atan, atan2, degrees, dist, radians, tan
 from highlights.recording.campaths import CamPath, pose_at
 
 SAMPLE_STEP = 0.1  # seconds between visibility checks
-KILL_PAD_BEFORE = 1.5  # POV is kept this long before a kill ...
-KILL_PAD_AFTER = 1.5  # ... and after it
+KILL_PAD = 1.0  # POV is kept this long before and after a kill ...
+KILL_PAD_FLOOR = 0.4  # ... but never less than this, even between close kills
 MIN_SEGMENT = 1.5  # shorter cinematic cuts are dropped
 MERGE_GAP = 0.5  # POV blips shorter than this inside a cinematic cut are absorbed
 VIEW_MARGIN = 0.85  # fraction of the half-FOV the player must sit inside
@@ -66,6 +66,25 @@ def _in_view(position: Point, forward: Point, fov: float, target: Point) -> bool
     return yaw_off <= half_h * VIEW_MARGIN and pitch_off <= half_v * VIEW_MARGIN
 
 
+def _protected_windows(kill_times: list[float]) -> list[tuple[float, float]]:
+    """POV windows around the kills. The padding between two kills shrinks so a
+    minimum-length cut still fits in the gap when they are only a bit too close for
+    the full padding; kills too close for any cut simply merge into one window."""
+    kills = sorted(kill_times)
+
+    def pad(gap: float | None) -> float:
+        if gap is None:
+            return KILL_PAD
+        return min(KILL_PAD, max(KILL_PAD_FLOOR, (gap - MIN_SEGMENT) / 2))
+
+    windows = []
+    for i, kill in enumerate(kills):
+        before = pad(kill - kills[i - 1] if i > 0 else None)
+        after = pad(kills[i + 1] - kill if i + 1 < len(kills) else None)
+        windows.append((kill - before, kill + after))
+    return windows
+
+
 def plan_splice(
     duration: float,
     path: CamPath,
@@ -77,7 +96,7 @@ def plan_splice(
     kill_times are the POV player's kills (clip seconds); target_at gives the
     player's position at a time (None when unknown, which counts as not visible).
     """
-    protected = [(k - KILL_PAD_BEFORE, k + KILL_PAD_AFTER) for k in kill_times]
+    protected = _protected_windows(kill_times)
     steps = int(duration / SAMPLE_STEP) + 1
     visible: list[bool] = []
     for i in range(steps):

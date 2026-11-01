@@ -104,6 +104,11 @@ def _analyze(demo: DemoData, config: Config, queries: list[str]) -> list[Sequenc
     help="Cam paths per play with --cinematic (best matches first)",
 )
 @click.option(
+    "--cinematic-path",
+    default=None,
+    help="Use this cam path (file name without extension, e.g. B5) for every play instead of matching",
+)
+@click.option(
     "--cinematic-mode",
     type=click.Choice(["append", "splice"]),
     default="append",
@@ -134,6 +139,7 @@ def run(
     transitions: str,
     cinematic: bool,
     cinematic_takes: int,
+    cinematic_path: str | None,
     cinematic_mode: str,
     timing_offset: float,
 ) -> None:
@@ -188,6 +194,14 @@ def run(
                 "put them in a folder named after the map (see README, 'Cinematic cam paths')"
             )
         info(f"Cinematic: {len(campaths)} cam path(s) found for {parsed.map_name}")
+        forced = None
+        if cinematic_path:
+            forced = next((p for p in campaths if p.name.lower() == cinematic_path.lower()), None)
+            if forced is None:
+                raise click.ClickException(
+                    f"No cam path named {cinematic_path!r} for {parsed.map_name}; "
+                    f"available: {', '.join(p.name for p in campaths)}"
+                )
         sequences, spatial = add_cinematic_sequences(
             sequences,
             campaths,
@@ -195,6 +209,7 @@ def run(
             parsed.tickrate,
             cinematic_takes,
             splice=cinematic_mode == "splice",
+            forced=forced,
         )
 
     print_sequences_table(parsed, sequences)

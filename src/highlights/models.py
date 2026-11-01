@@ -143,6 +143,8 @@ class Sequence:
     cinematic_of: int | None = None
     # Clip-second ranges where the cinematic replaces the POV footage (splice mode).
     splice_segments: list[tuple[float, float]] | None = None
+    # Top cam path candidates considered for this play (name, distance, coverage).
+    cinematic_candidates: list[dict] | None = None
 
     @property
     def name(self) -> str:

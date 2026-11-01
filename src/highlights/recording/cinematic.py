@@ -6,9 +6,12 @@ from collections.abc import Callable
 from dataclasses import replace
 
 from highlights.models import Sequence
-from highlights.recording.campaths import CamPath, rank_campaths
+from highlights.recording.campaths import CamPath, path_distance, rank_campaths
 from highlights.recording.splice_plan import Point, Trajectory, coverage, plan_splice, position_at
 from highlights.util.log import info, warn
+
+MIN_COVERAGE = 3.0  # seconds a path must be able to cut in for to be used in splice mode
+CANDIDATES_SHOWN = 3
 
 
 def _action_targets(spatial: dict | None) -> list[Point]:
@@ -53,6 +56,14 @@ def _kill_times(sequence: Sequence, tickrate: float) -> list[float]:
     return sorted((t - sequence.start_tick) / tickrate for t in ticks if sequence.start_tick <= t <= sequence.end_tick)
 
 
+def _describe(candidates: list[dict]) -> str:
+    parts = []
+    for c in candidates:
+        cover = "" if c["coverage_seconds"] is None else f", sees player {c['coverage_seconds']:.1f}s"
+        parts.append(f"{c['name']} ({c['distance']:.0f}u{cover})")
+    return ", ".join(parts)
+
+
 def add_cinematic_sequences(
     sequences: list[Sequence],
     campaths: list[CamPath],
@@ -60,13 +71,16 @@ def add_cinematic_sequences(
     tickrate: float,
     takes: int = 1,
     splice: bool = False,
+    forced: CamPath | None = None,
 ) -> tuple[list[Sequence], dict[int, dict]]:
     """Follow each POV sequence with cinematic re-recordings of the same ticks.
 
-    Append mode: `takes` best-matching paths per play, each a clip of its own.
-    Splice mode: the single path that can cut in for the longest stretch of down
-    time; its plan is stored in `splice_segments`, and plays no path can cover are
-    left POV-only (no point recording them).
+    Paths are ranked by how close they pass to the play's kills. Append mode takes
+    the `takes` closest. Splice mode takes the closest path that can cut in for at
+    least MIN_COVERAGE seconds of down time (its plan is stored in
+    `splice_segments`); plays no path can cover are left POV-only. `forced` skips
+    the ranking and uses that path for every play (splice mode still needs it to
+    cover something).
 
     Returns the interleaved list renumbered 1..N and the spatial metadata re-keyed
     to the new numbers.
@@ -86,12 +100,19 @@ def add_cinematic_sequences(
         append(sequence, sequence.number)
         pov_number = len(result)
         source = spatial_by_sequence.get(sequence.number)
-        ranked = rank_campaths(campaths, _action_targets(source))
-        if not ranked:
+        targets = _action_targets(source)
+        ranked = [forced] if forced else rank_campaths(campaths, targets)
+        if not ranked or not targets:
             warn(f"{sequence.label}: no spatial data to match cam paths, no cinematic take")
             continue
+        distance = {path.name: path_distance(path, targets) for path in ranked}
+
+        def candidate(path: CamPath, cover: float | None) -> dict:
+            return {"name": path.name, "distance": round(distance[path.name], 1), "coverage_seconds": cover}
 
         if not splice:
+            shown = [candidate(path, None) for path in ranked[: max(takes, CANDIDATES_SHOWN)]]
+            info(f"{sequence.label}: cinematic candidates — {_describe(shown)}")
             for path in ranked[:takes]:
                 if path.duration < sequence.duration_seconds(tickrate):
                     warn(
@@ -104,6 +125,7 @@ def add_cinematic_sequences(
                     label=f"{sequence.label} — cinematic {path.name}",
                     campath=path.file,
                     cinematic_of=pov_number,
+                    cinematic_candidates=shown,
                 )
             continue
 
@@ -111,11 +133,20 @@ def add_cinematic_sequences(
         kills = _kill_times(sequence, tickrate)
         duration = sequence.duration_seconds(tickrate)
         plans = [(path, plan_splice(duration, path, kills, target_at)) for path in ranked]
-        # Longest coverage wins; proximity (the ranking order) breaks ties.
-        path, segments = max(plans, key=lambda plan: coverage(plan[1]))
-        if not segments:
-            warn(f"{sequence.label}: no cam path sees the player during down time, POV only")
+        threshold = 1e-9 if forced else MIN_COVERAGE
+        chosen = next(((p, segs) for p, segs in plans if coverage(segs) >= threshold), None)
+        shown_plans = plans[:CANDIDATES_SHOWN]
+        if chosen and chosen not in shown_plans:
+            shown_plans = [*shown_plans, chosen]
+        shown = [candidate(p, round(coverage(segs), 1)) for p, segs in shown_plans]
+        if chosen is None:
+            warn(
+                f"{sequence.label}: no cam path sees the player for {MIN_COVERAGE:.0f}s of down time, "
+                f"POV only — closest were {_describe(shown)}"
+            )
             continue
+        path, segments = chosen
+        info(f"{sequence.label}: cinematic {path.name} — candidates: {_describe(shown)}")
         append(
             sequence,
             sequence.number,
@@ -123,5 +154,6 @@ def add_cinematic_sequences(
             campath=path.file,
             cinematic_of=pov_number,
             splice_segments=segments,
+            cinematic_candidates=shown,
         )
     return result, spatial

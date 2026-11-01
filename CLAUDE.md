@@ -115,12 +115,17 @@ Set per clip in `build_actions_file`; they deviate from stock CSDM on purpose.
 - `--cinematic-mode splice`: both takes cover identical ticks, so they align
   frame for frame. `recording/splice_plan.py` plans, from data only (so it is
   in the `--json-only` report as `cinematic.splice_segments`), the clip-second
-  ranges where the cinematic replaces POV: samples at 10 Hz, POV kept ±1.5 s
-  around each kill, the POV player (via `cameras` + `pov_trajectories`) must sit
+  ranges where the cinematic replaces POV: samples at 10 Hz, POV kept ±1 s
+  around each kill (the padding between two kills shrinks, floor 0.4 s, so a
+  1.5 s cut still fits in a tight gap), the POV player (via `cameras` + `pov_trajectories`) must sit
   inside the cam path's view cone (horizontal fov, 0.85 margin, 16:9, ≤ 4000
-  units; roll ignored; NO occlusion test), runs < 1.5 s dropped. The path with
-  the longest coverage wins (proximity breaks ties); plays with no coverage get
-  no cinematic. `video/splice.py` overlays the cinematic with
+  units; roll ignored; NO occlusion test), runs < 1.5 s dropped. Path choice is
+  proximity-first (same ranking as append mode): the closest path whose coverage
+  is ≥ `MIN_COVERAGE` (3 s) wins — coverage is only a gate, NOT the ranking (an
+  earlier longest-coverage ranking picked far wide cameras that "see" the player
+  through walls). Plays with no eligible path get no cinematic. Candidates
+  (distance + coverage) are logged and stored in `cinematic.candidates`;
+  `--cinematic-path NAME` forces one path for every play. `video/splice.py` overlays the cinematic with
   `overlay=enable='between(t,a,b)+…'` (re-encodes, POV audio kept) and
   `cli._splice_cinematics` swaps it in for the POV clip, so cinematic clips never
   reach the concat and final clip lengths equal POV lengths (kill times and

@@ -116,14 +116,20 @@ purchased observer pack) and keep them out of git.
 4. `--cinematic-mode splice` instead of the default `append` produces one clip
    per play with the same length as the POV clip: the cinematic is cut in
    during down time between kills, only while its camera is pointed at the
-   player, and the POV footage is kept from 1.5 s before to 1.5 s after each
-   kill. Per play, the cam path that can cut in for the longest stretch is
-   used (`--cinematic-takes` is ignored); plays no path can cover stay
-   POV-only. The planned cuts are in the JSON
+   player. The POV footage is kept from 1 s before to 1 s after each kill
+   (less when two kills are close together, so a cut still fits between
+   them). Per play, the cam path that passes closest to the kills is used,
+   provided it can cut in for at least 3 s (`--cinematic-takes` is ignored);
+   plays no path can cover stay POV-only. The planned cuts are in the JSON
    (`cinematic.splice_segments`, clip seconds), so `--json-only` previews
    them without recording. Because lengths are unchanged, kill times and
    `beat_targets` are unaffected.
-5. `highlights doctor` shows how many cam paths were found.
+5. The console (and, for append and splice takes alike, the JSON's
+   `cinematic.candidates`) lists the closest candidate paths per play with
+   their distance to the kills and, in splice mode, how long each could cut
+   in. To force one path for every play, use `--cinematic-path B5` (the file
+   name without extension).
+6. `highlights doctor` shows how many cam paths were found.
 
 Splice limits: visibility is a view-cone test against the player's position
 and does not know about walls, so a cut can land on a camera that is pointed

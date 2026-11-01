@@ -59,8 +59,20 @@ def test_plan_cuts_in_during_down_time_only(tmp_path):
     path = static_path(tmp_path)  # at the origin looking along +x
     target = lambda t: (500.0, 0.0, 0.0)  # noqa: E731  player straight ahead, always
     segments = plan_splice(20.0, path, kill_times=[4.0, 15.0], target_at=target)
-    # POV is kept from 1.5 s before to 1.5 s after each kill (at 4.0 s and 15.0 s).
-    assert segments == [(0.0, 2.5), (5.6, 13.5), (16.6, 20.0)]
+    # POV is kept from 1 s before to 1 s after each kill (at 4.0 s and 15.0 s).
+    assert segments == [(0.0, 3.0), (5.1, 14.0), (16.1, 20.0)]
+
+
+def test_padding_shrinks_between_close_kills_so_a_cut_still_fits(tmp_path):
+    path = static_path(tmp_path)
+    seen = lambda t: (500.0, 0.0, 0.0)  # noqa: E731
+    # 3.2 s apart: full padding would leave only 1.2 s, so it shrinks to fit a 1.5 s cut.
+    segments = plan_splice(12.0, path, [4.0, 7.2], seen)
+    assert any(4.0 < a and b < 7.2 for a, b in segments)
+    # 0.7 s apart: no room for any cut between them.
+    segments = plan_splice(12.0, path, [4.0, 4.7], seen)
+    assert not any(a >= 4.0 and b <= 4.7 for a, b in segments)
+    assert all(b <= 3.7 or a >= 5.0 for a, b in segments)  # the pair is protected as one block
 
 
 def test_plan_ignores_player_out_of_view_or_too_far_and_short_gaps(tmp_path):
@@ -81,30 +93,79 @@ def test_plan_is_limited_to_the_path_duration(tmp_path):
     assert coverage(segments) >= 5.5
 
 
-def test_splice_mode_picks_longest_coverage_and_skips_uncoverable_plays(tmp_path):
-    # "near" passes right by the action but faces away; "far" sees the player.
-    write_oriented(tmp_path / "Nuke", "near", [(0, 480, 0, 0, 0, 180), (30, 480, 0, 0, 0, 180)])
-    write_oriented(tmp_path / "Nuke", "far", [(0, 0, 0, 0, 0, 0), (30, 0, 0, 0, 0, 0)])
-    paths = load_campaths(tmp_path, "de_nuke")
-    sequence = _sequence(1, 5000, 5000 + 64 * 20)
+def _play(tmp_path, paths_spec, seconds=20):
+    """A play with the player 500 units down +x; paths_spec: {name: points}."""
     from highlights.models import CameraAction
 
-    sequence = type(sequence)(**{**sequence.__dict__, "cameras": [CameraAction(5000, "111")]})
+    for name, points in paths_spec.items():
+        write_oriented(tmp_path / "Nuke", name, points)
+    paths = load_campaths(tmp_path, "de_nuke")
+    base = _sequence(1, 5000, 5000 + 64 * seconds)
+    sequence = type(base)(**{**base.__dict__, "cameras": [CameraAction(5000, "111")]})
     samples = [
-        {"seconds_from_clip_start": float(t), "xyz": {"x": 500.0, "y": 0.0, "z": 0.0}} for t in range(0, 21)
+        {"seconds_from_clip_start": float(t), "xyz": {"x": 500.0, "y": 0.0, "z": 0.0}}
+        for t in range(0, seconds + 1)
     ]
-    spatial = {
-        1: {**_spatial(500, 0, 0), "pov_trajectories": [{"steamid": "111", "samples": samples}]},
-    }
-    result, new_spatial = add_cinematic_sequences([sequence], paths, spatial, 64.0, splice=True)
-    assert [s.cinematic_of for s in result] == [None, 1]
-    assert result[1].campath.stem == "far"  # coverage beats proximity
-    assert result[1].splice_segments and coverage(result[1].splice_segments) > 15
-    assert set(new_spatial) == {1, 2}
+    spatial = {1: {**_spatial(500, 0, 0), "pov_trajectories": [{"steamid": "111", "samples": samples}]}}
+    return sequence, paths, spatial
 
-    # Nothing sees the player: the play stays POV-only (no pointless recording).
-    spatial_blind = {1: {**spatial[1], "pov_trajectories": []}}
-    result, _ = add_cinematic_sequences([sequence], paths, spatial_blind, 64.0, splice=True)
+
+def test_splice_mode_uses_closest_path_that_covers_enough(tmp_path):
+    sequence, paths, spatial = _play(
+        tmp_path,
+        {
+            "close": [(0, 480, 0, 0, 0, 0), (30, 480, 0, 0, 0, 0)],  # right at the player, looks at +x
+            "wide": [(0, -3000, 0, 0, 0, 0), (30, -3000, 0, 0, 0, 0)],  # far away, sees more of the clip
+        },
+    )
+    # "close" passes at 20 units but its view of the player at 480->500 is below the
+    # 50-unit minimum distance, so it sees nothing; "wide" is the only one that covers.
+    result, _ = add_cinematic_sequences([sequence], paths, spatial, 64.0, splice=True)
+    assert result[1].campath.stem == "wide"
+
+    # With a path that is both close and able to see the player, proximity decides
+    # even when a farther path would cover more of the clip.
+    sequence, paths, spatial = _play(
+        tmp_path / "b",
+        {
+            "near": [(0, 100, 0, 0, 0, 0), (8, 100, 0, 0, 0, 0)],  # 8 s path, covers ~8 s
+            "far": [(0, -3000, 0, 0, 0, 0), (30, -3000, 0, 0, 0, 0)],  # covers ~20 s
+        },
+    )
+    result, _ = add_cinematic_sequences([sequence], paths, spatial, 64.0, splice=True)
+    assert result[1].campath.stem == "near"
+    names = [c["name"] for c in result[1].cinematic_candidates]
+    assert names[0] == "near" and set(names) == {"near", "far"}
+    assert all(c["coverage_seconds"] is not None and c["distance"] >= 0 for c in result[1].cinematic_candidates)
+
+
+def test_splice_mode_requires_minimum_coverage(tmp_path):
+    # Faces away from the player: covers nothing, so the play stays POV-only.
+    sequence, paths, spatial = _play(tmp_path, {"blind": [(0, 400, 0, 0, 0, 180), (30, 400, 0, 0, 0, 180)]})
+    result, _ = add_cinematic_sequences([sequence], paths, spatial, 64.0, splice=True)
+    assert len(result) == 1
+    # A path that only covers ~2 s is below MIN_COVERAGE too.
+    sequence, paths, spatial = _play(tmp_path / "b", {"brief": [(0, 100, 0, 0, 0, 0), (2, 100, 0, 0, 0, 0)]})
+    result, _ = add_cinematic_sequences([sequence], paths, spatial, 64.0, splice=True)
+    assert len(result) == 1
+
+
+def test_forced_path_overrides_matching(tmp_path):
+    sequence, paths, spatial = _play(
+        tmp_path,
+        {
+            "near": [(0, 100, 0, 0, 0, 0), (30, 100, 0, 0, 0, 0)],
+            "far": [(0, -3000, 0, 0, 0, 0), (30, -3000, 0, 0, 0, 0)],
+        },
+    )
+    far = next(p for p in paths if p.name == "far")
+    for splice in (False, True):
+        result, _ = add_cinematic_sequences([sequence], paths, spatial, 64.0, splice=splice, forced=far)
+        assert result[1].campath.stem == "far"
+    # Forced but blind in splice mode: nothing to cut in, POV only.
+    write_oriented(tmp_path / "Nuke", "away", [(0, 100, 0, 0, 0, 180), (30, 100, 0, 0, 0, 180)])
+    away = next(p for p in load_campaths(tmp_path, "de_nuke") if p.name == "away")
+    result, _ = add_cinematic_sequences([sequence], paths, spatial, 64.0, splice=True, forced=away)
     assert len(result) == 1
 
 
