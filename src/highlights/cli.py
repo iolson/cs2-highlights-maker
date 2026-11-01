@@ -21,7 +21,7 @@ from highlights.config import Config, load_config
 from highlights.demo.parser import DemoData, ensure_dem_file, parse_demo
 from highlights.demo.players import PlayerNotFound, resolve_players
 from highlights.models import CameraAction, Sequence
-from highlights.report import print_sequences_table, write_report
+from highlights.report import finalize_report, print_sequences_table, write_report
 from highlights.util.log import console, error, info, warn
 
 
@@ -92,6 +92,12 @@ def _analyze(demo: DemoData, config: Config, queries: list[str]) -> list[Sequenc
     default="none",
     help="Transition between clips (fade re-encodes, slower)",
 )
+@click.option(
+    "--timing-offset",
+    type=float,
+    default=0.0,
+    help="Seconds added to kill times in the report (calibrated capture-start offset)",
+)
 def run(
     demo: Path,
     output: Path | None,
@@ -108,6 +114,7 @@ def run(
     keep_clips: bool,
     overlays: bool,
     transitions: str,
+    timing_offset: float,
 ) -> None:
     """Parse DEMO, detect highlights, record them in-game and produce an MP4."""
     config = load_config()
@@ -176,6 +183,17 @@ def run(
             concat_clips_with_fade(tools.ffmpeg_exe, clips, output)
         else:
             concat_clips(tools.ffmpeg_exe, clips, output, work_dir)
+
+    # Now that real clip lengths are known, give each kill a time in the final video.
+    from highlights.video.concat import FADE_DURATION
+    from highlights.video.ffmpeg import probe_duration
+
+    finalize_report(
+        report_path,
+        {o.sequence.number: probe_duration(tools.ffmpeg_exe, c) for o, c in zip(outputs, clips)},
+        overlap_seconds=FADE_DURATION if transitions == "fade" else 0.0,
+        offset_seconds=timing_offset,
+    )
 
     if not keep_clips:
         shutil.rmtree(work_dir, ignore_errors=True)

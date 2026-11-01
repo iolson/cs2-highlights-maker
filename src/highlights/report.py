@@ -217,6 +217,65 @@ def write_report(
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
+def finalize_report(
+    path: Path,
+    clip_durations: dict[int, float],
+    overlap_seconds: float = 0.0,
+    offset_seconds: float = 0.0,
+) -> None:
+    """Add final-video timing to a report written before recording.
+
+    clip_durations maps sequence number -> ffprobe duration of its processed clip;
+    only recorded sequences appear, in report order. overlap_seconds is the
+    crossfade length (0 for stream-copy concat). offset_seconds is a calibration
+    shift (measured capture start vs. start_tick) applied to every kill time.
+    Adds video_start_seconds / video_time_seconds to sequences and kill events,
+    and a flat top-level beat_targets list of the POV kills, sorted by video time.
+    """
+    data = json.loads(path.read_text(encoding="utf-8"))
+    position = 0.0
+    beat_targets: list[dict] = []
+    for sequence in data["sequences"]:
+        duration = clip_durations.get(sequence["number"])
+        if duration is None:
+            continue
+        sequence["clip_duration_seconds"] = round(duration, 3)
+        sequence["video_start_seconds"] = round(position, 3)
+        kills = [e for e in sequence["events"] if e["type"] == "kill"]
+        pov_kills = [e for e in kills if e["is_pov_kill"] and e["is_selected_moment_kill"]]
+        for event in kills:
+            event["video_time_seconds"] = round(
+                position + event["seconds_from_clip_start"] + offset_seconds, 3
+            )
+        for index, event in enumerate(pov_kills, 1):
+            beat_targets.append({
+                "video_time_seconds": event["video_time_seconds"],
+                "sequence": sequence["number"],
+                "clip_time_seconds": event["seconds_from_clip_start"],
+                "tick": event["tick"],
+                "kill_index": index,
+                "kills_in_clip": len(pov_kills),
+                "weapon": event["weapon"],
+                "headshot": event["headshot"],
+                "special": bool(
+                    event["noscope"] or event["thrusmoke"] or event["attackerblind"] or event["penetrated"]
+                ),
+                "victim": event["victim"]["name"],
+            })
+        position += duration - overlap_seconds
+
+    beat_targets.sort(key=lambda target: target["video_time_seconds"])
+    data["beat_targets"] = beat_targets
+    data["editing"]["video_timing"] = {
+        "status": "from_clip_durations",
+        "overlap_seconds": overlap_seconds,
+        "offset_seconds": offset_seconds,
+        "note": "video_time_seconds = sum of earlier clip lengths + clip time + offset. "
+        "Still assumes capture starts at start_tick unless offset_seconds was calibrated.",
+    }
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
 def print_sequences_table(demo: DemoData, sequences: list[Sequence]) -> None:
     table = Table(title=f"Highlights — {demo.map_name} ({len(demo.rounds)} rounds)")
     table.add_column("#", justify="right")
