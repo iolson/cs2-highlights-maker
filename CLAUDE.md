@@ -74,6 +74,28 @@ Ported from CSDM source (verified June 2026; local reference copies in
 - Expected outputs per sequence: `<work>/N-sequence/video.mp4` +
   `take*/audio.wav` (use the last take folder).
 
+## Capture defaults (sequences.py, LANChamp setup)
+
+Set per clip in `build_actions_file`; they deviate from stock CSDM on purpose.
+
+- **Audio:** game sound stays, CS2 music is muted (`AUDIO_COMMANDS`:
+  `snd_musicvolume`, menu/round/MVP/objective/deathcam volumes at 0), and
+  `snd_mute_losefocus 0` keeps sound when CS2 isn't the foreground window.
+- **Crosshair:** one fixed green crosshair for every observed player
+  (`CROSSHAIR_COMMANDS`, tuned for 1080p; the cvars follow CS2's September 2026
+  rename — recheck them if a CS2 update changes crosshair behavior).
+  `cl_show_observer_crosshair 0` is set alongside it.
+- **Kill feed:** only the active POV player's kills appear
+  (`mirv_deathmsg filter add attackerMatch=!x<steamid> block=1 lastRule=1`,
+  plus `localPlayer x<steamid>` so they are highlighted). The filter is
+  re-applied at setup and on every camera switch, together with
+  `mirv_deathmsg clear`, so the feed never carries the previous POV's kills.
+- **Kill-feed lifetime:** `max(60, clip seconds + 10)` with `lifetimeMod 1.0`,
+  so POV kills persist to the end of the clip instead of fading after 5 s.
+  `recording.death_notices_duration` is therefore no longer used here.
+- Every sequence must have at least one camera (raises otherwise): the first
+  camera's player seeds the kill-feed filter.
+
 ## Cinematic cam paths (`--cinematic`)
 
 - Cam paths are third-party/purchased and MUST NEVER be committed or copied
