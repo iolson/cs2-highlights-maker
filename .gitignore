@@ -9,3 +9,9 @@ test-output/
 *.dem.json
 .idea
 .DS_Store
+
+# Third-party / purchased cam paths must never be committed (see campaths/README.md)
+campaths/*
+!campaths/README.md
+*.dz
+*.campath

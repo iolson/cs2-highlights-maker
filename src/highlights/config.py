@@ -29,6 +29,7 @@ class PathsConfig:
     ffmpeg_exe: str = "auto"
     plugin_dll: str = "auto"
     work_dir: str = "auto"
+    campaths_dir: str = "auto"  # auto: <repo>/campaths (gitignored, user-supplied)
 
 
 @dataclass

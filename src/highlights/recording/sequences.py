@@ -102,6 +102,9 @@ def build_actions_file(
 ) -> ActionsFile:
     actions = ActionsFile(demo_path)
     tickrate = round(demo.tickrate)
+    # Only touch campath state when a cinematic sequence exists, so plain POV
+    # runs emit exactly the commands they always did.
+    uses_campaths = any(s.campath for s in sequences)
 
     for i, sequence in enumerate(sequences):
         if not sequence.cameras:
@@ -137,6 +140,10 @@ def build_actions_file(
         actions.add_exec(setup_tick, "mirv_deathmsg clear")
         actions.add_exec(setup_tick, "spec_show_xray 0")
         actions.add_exec(setup_tick, "mp_display_kill_assists 1")
+        if uses_campaths:
+            # A previous cinematic sequence must not leak its path into this one.
+            actions.add_exec(setup_tick, "mirv_campath enabled 0")
+            actions.add_exec(setup_tick, "mirv_campath clear")
         _apply_pov_killfeed_filter(actions, setup_tick, sequence.cameras[0].steamid)
 
         # {QUOTE} is HLAE's escaped-quote placeholder; the literal "\\" before
@@ -176,8 +183,18 @@ def build_actions_file(
                 f"No spec_player slot for steamid(s) {missing_slots} — cannot aim the camera"
             )
 
+        if sequence.campath is not None:
+            # `edit start` with no argument rebases the path to start at the
+            # current demo time (this is how observer-pack binds use it), so the
+            # path plays from the first recorded frame.
+            actions.add_exec(sequence.start_tick, "mirv_campath enabled 1")
+            actions.add_exec(sequence.start_tick, f'mirv_campath load "{to_unix_path(sequence.campath)}"')
+            actions.add_exec(sequence.start_tick, "mirv_campath edit start")
+
         actions.add_exec(sequence.start_tick, "mirv_streams record start")
         actions.add_exec(sequence.end_tick, "mirv_streams record end")
+        if sequence.campath is not None:
+            actions.add_exec(sequence.end_tick, "mirv_campath enabled 0")
 
         if i == len(sequences) - 1:
             actions.add_exec(sequence.end_tick + 64, "quit")

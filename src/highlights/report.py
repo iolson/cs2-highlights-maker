@@ -141,6 +141,7 @@ def write_report(
     sequences: list[Sequence],
     capture_fps: int = 60,
     target_fps: int = 60,
+    spatial_by_sequence: dict[int, dict] | None = None,
 ) -> None:
     """Write the existing report schema plus per-sequence editing timelines.
 
@@ -151,7 +152,8 @@ def write_report(
     if capture_fps <= 0 or target_fps <= 0:
         raise ValueError("capture_fps and target_fps must be positive")
 
-    spatial_by_sequence = build_spatial_metadata(demo, sequences)
+    if spatial_by_sequence is None:
+        spatial_by_sequence = build_spatial_metadata(demo, sequences)
 
     data = {
         "schema_version": 3,
@@ -181,6 +183,11 @@ def write_report(
                 "end_tick": s.end_tick,
                 "duration_seconds": round(s.duration_seconds(demo.tickrate), 1),
                 "clip_filename": f"clip_{s.number:02d}.mp4",
+                "cinematic": (
+                    {"campath": s.campath.name, "of_sequence": s.cinematic_of}
+                    if s.campath is not None
+                    else None
+                ),
                 "cameras": [
                     {"tick": c.tick, "steamid": c.steamid, "name": demo.player_names.get(c.steamid, "")}
                     for c in s.cameras
@@ -251,6 +258,7 @@ def finalize_report(
             beat_targets.append({
                 "video_time_seconds": event["video_time_seconds"],
                 "sequence": sequence["number"],
+                "cinematic": bool(sequence.get("cinematic")),
                 "clip_time_seconds": event["seconds_from_clip_start"],
                 "tick": event["tick"],
                 "kill_index": index,

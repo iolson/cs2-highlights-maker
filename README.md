@@ -9,6 +9,7 @@ highlights match.dem                      # best moments of the whole match
 highlights match.dem --player s1mple      # one player's highlights only
 highlights match.dem --players s1mple,device   # several players (comma-separated or repeated)
 highlights match.dem --json-only          # analysis only, no recording
+highlights match.dem --cinematic          # also re-record each play through your cam paths
 highlights doctor                         # environment check
 highlights update-tools                   # re-download latest HLAE/FFmpeg
 ```
@@ -84,6 +85,38 @@ lead_out_seconds = 3.0
 top = 10
 min_kills = 2
 ```
+
+## Cinematic cam paths
+
+`--cinematic` records every selected play a second time through an HLAE cam
+path, so you can cut between the POV take and a cinematic take of the same
+moment. The paths are **not included**: bring your own (for example a
+purchased observer pack) and keep them out of git.
+
+1. Put HLAE campath files (`.dz`, `.campath` or `.xml`) in `campaths/`, in one
+   folder per map named like the map (`Nuke/` or `de_nuke/`):
+
+   ```
+   campaths/
+     Nuke/
+       A4.dz
+       T1.dz
+   ```
+
+   `campaths/` is gitignored (apart from its README), as are `*.dz` and
+   `*.campath` everywhere, so these files cannot be committed by accident.
+   To use another location set `campaths_dir` under `[paths]` in the config.
+2. Run `highlights match.dem --cinematic`. For each play the cam paths that
+   pass closest to its kills are chosen; `--cinematic-takes 2` records the two
+   best matches. Each cinematic clip follows its POV clip in the final video,
+   and the JSON report marks it with `"cinematic": {"campath", "of_sequence"}`
+   (its `beat_targets` entries carry `"cinematic": true`).
+3. `highlights doctor` shows how many cam paths were found.
+
+Notes: the path starts playing at the first recorded frame (`mirv_campath edit
+start`). If it is shorter than the clip, the view returns to the POV player
+when it ends, and a warning is printed. Matching assumes cam path coordinates
+equal demo world coordinates, which has not been verified in-game yet.
 
 ## Important notes
 

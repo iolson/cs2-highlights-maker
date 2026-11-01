@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -137,6 +138,9 @@ class Sequence:
     score: float
     round_index: int
     moments: list[Moment] = field(default_factory=list)
+    # Cinematic re-recording of another sequence's ticks through a user cam path.
+    campath: Path | None = None
+    cinematic_of: int | None = None
 
     @property
     def name(self) -> str:

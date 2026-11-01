@@ -93,6 +93,17 @@ def _analyze(demo: DemoData, config: Config, queries: list[str]) -> list[Sequenc
     help="Transition between clips (fade re-encodes, slower)",
 )
 @click.option(
+    "--cinematic",
+    is_flag=True,
+    help="Also record each play through your own cam paths (see README, campaths/)",
+)
+@click.option(
+    "--cinematic-takes",
+    type=click.IntRange(min=1),
+    default=1,
+    help="Cam paths per play with --cinematic (best matches first)",
+)
+@click.option(
     "--timing-offset",
     type=float,
     default=0.0,
@@ -114,6 +125,8 @@ def run(
     keep_clips: bool,
     overlays: bool,
     transitions: str,
+    cinematic: bool,
+    cinematic_takes: int,
     timing_offset: float,
 ) -> None:
     """Parse DEMO, detect highlights, record them in-game and produce an MP4."""
@@ -153,9 +166,34 @@ def run(
             "No highlights matched the criteria — try --min-kills 1 or check the demo"
         )
 
+    spatial = None
+    if cinematic:
+        from highlights.recording.campaths import (
+            add_cinematic_sequences,
+            load_campaths,
+            resolve_campaths_dir,
+        )
+        from highlights.spatial import build_spatial_metadata
+
+        campaths_dir = resolve_campaths_dir(config)
+        campaths = load_campaths(campaths_dir, parsed.map_name)
+        if not campaths:
+            raise click.ClickException(
+                f"No cam paths for {parsed.map_name} in {campaths_dir} — "
+                "put them in a folder named after the map (see README, 'Cinematic cam paths')"
+            )
+        info(f"Cinematic: {len(campaths)} cam path(s) found for {parsed.map_name}")
+        sequences, spatial = add_cinematic_sequences(
+            sequences,
+            campaths,
+            build_spatial_metadata(parsed, sequences),
+            parsed.tickrate,
+            cinematic_takes,
+        )
+
     print_sequences_table(parsed, sequences)
     report_path = output.with_suffix(".json")
-    write_report(report_path, parsed, sequences)
+    write_report(report_path, parsed, sequences, spatial_by_sequence=spatial)
     info(f"Report written to {report_path}")
 
     if json_only:
@@ -276,6 +314,20 @@ def doctor() -> None:
         "CS2 server plugin",
         plugin_dll is not None,
         str(plugin_dll or "install CS Demo Manager or put server.dll in vendor/cs2-plugin/"),
+    )
+
+    from highlights.recording.campaths import resolve_campaths_dir
+
+    campaths_dir = resolve_campaths_dir(config)
+    campath_files = (
+        sum(1 for f in campaths_dir.rglob("*") if f.is_file() and f.suffix.lower() in {".dz", ".campath", ".xml"})
+        if campaths_dir.is_dir()
+        else 0
+    )
+    row(
+        "Cinematic cam paths",
+        True if campath_files else None,
+        f"{campath_files} file(s) in {campaths_dir}" if campath_files else f"none in {campaths_dir} (optional, for --cinematic)",
     )
 
     from highlights.config import app_data_dir
