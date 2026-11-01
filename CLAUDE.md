@@ -103,11 +103,30 @@ Set per clip in `build_actions_file`; they deviate from stock CSDM on purpose.
   `campaths/<Map>/` folder (`campaths/*`, `*.dz`, `*.campath` are ignored;
   only `campaths/README.md` is tracked) or wherever `paths.campaths_dir`
   points. Tests generate their own tiny campath XML.
-- Flow: `cli.run` builds spatial metadata once → `add_cinematic_sequences`
-  appends, after each POV sequence, `--cinematic-takes N` copies over the same
-  ticks with `Sequence.campath` set (renumbered 1..N, `cinematic_of` = the POV
-  sequence's new number; spatial data re-keyed) → `write_report` is given that
-  precomputed spatial dict.
+- Flow: `cli.run` builds spatial metadata once → `recording/cinematic.py`
+  `add_cinematic_sequences` appends, after each POV sequence, `--cinematic-takes N`
+  copies over the same ticks with `Sequence.campath` set (renumbered 1..N,
+  `cinematic_of` = the POV sequence's new number; spatial data re-keyed) →
+  `write_report` is given that precomputed spatial dict.
+- Kill feed: cinematic sequences block every death notice
+  (`mirv_deathmsg filter add attackerMatch=!x0 block=1 lastRule=1`, re-applied
+  on camera switches like the POV filter; bots have xuid 0 so their kills would
+  still show). POV sequences are unchanged.
+- `--cinematic-mode splice`: both takes cover identical ticks, so they align
+  frame for frame. `recording/splice_plan.py` plans, from data only (so it is
+  in the `--json-only` report as `cinematic.splice_segments`), the clip-second
+  ranges where the cinematic replaces POV: samples at 10 Hz, POV kept ±1.5 s
+  around each kill, the POV player (via `cameras` + `pov_trajectories`) must sit
+  inside the cam path's view cone (horizontal fov, 0.85 margin, 16:9, ≤ 4000
+  units; roll ignored; NO occlusion test), runs < 1.5 s dropped. The path with
+  the longest coverage wins (proximity breaks ties); plays with no coverage get
+  no cinematic. `video/splice.py` overlays the cinematic with
+  `overlay=enable='between(t,a,b)+…'` (re-encodes, POV audio kept) and
+  `cli._splice_cinematics` swaps it in for the POV clip, so cinematic clips never
+  reach the concat and final clip lengths equal POV lengths (kill times and
+  `beat_targets` stay valid). Camera pose: quaternion wins over Euler
+  (`qw/qx/qy/qz` vs `rx/ry/rz`); positive pitch looks down, positive yaw turns
+  toward +y; verified that both encodings agree on real pack files.
 - Commands (`sequences.py`): at `start_tick`, `mirv_campath enabled 1`,
   `load "<abs forward-slash path>"`, `edit start` (no args = rebase the path to
   the current demo time, as observer-pack binds do), then at `end_tick`
@@ -116,7 +135,10 @@ Set per clip in `build_actions_file`; they deviate from stock CSDM on purpose.
   runs emit no campath commands — keep it that way.
 - **Not yet validated in-game:** that campath coordinates equal demo world
   coordinates (used to rank paths by distance to the kills), that `edit start`
-  works from the actions file, and what the view does after a shorter path ends.
+  works from the actions file, what the view does after a shorter path ends,
+  that the paths' `fov` is horizontal (splice visibility assumes it), that
+  `attackerMatch=!x0` blocks the whole kill feed, and that the POV and
+  cinematic recordings really are frame-aligned (splice depends on it).
 
 ## Environment gotchas (this machine)
 

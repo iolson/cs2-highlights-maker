@@ -93,6 +93,18 @@ def _apply_pov_killfeed_filter(
     actions.add_exec(tick, f"mirv_deathmsg localPlayer x{steamid}")
 
 
+def _apply_killfeed(actions: ActionsFile, tick: int, sequence: Sequence, steamid: str) -> None:
+    """POV clips show only the POV player's kills; cinematic clips show none."""
+    if sequence.campath is None:
+        _apply_pov_killfeed_filter(actions, tick, steamid)
+        return
+    # Block every death notice: attackerMatch=!x0 matches any attacker that is not
+    # xuid 0 (same documented filter syntax as the POV rule above). Bots have
+    # xuid 0, so their kills would still show.
+    actions.add_exec(tick, "mirv_deathmsg filter clear")
+    actions.add_exec(tick, "mirv_deathmsg filter add attackerMatch=!x0 block=1 lastRule=1")
+
+
 def build_actions_file(
     demo_path: Path,
     sequences: list[Sequence],
@@ -144,7 +156,7 @@ def build_actions_file(
             # A previous cinematic sequence must not leak its path into this one.
             actions.add_exec(setup_tick, "mirv_campath enabled 0")
             actions.add_exec(setup_tick, "mirv_campath clear")
-        _apply_pov_killfeed_filter(actions, setup_tick, sequence.cameras[0].steamid)
+        _apply_killfeed(actions, setup_tick, sequence, sequence.cameras[0].steamid)
 
         # {QUOTE} is HLAE's escaped-quote placeholder; the literal "\\" before
         # video.mp4 is unescaped to "\" by HLAE (as CSDM generates it).
@@ -176,7 +188,7 @@ def build_actions_file(
             # On POV changes, reset the feed so it only contains kills by
             # the newly spectated player. Kills persist until that switch.
             actions.add_exec(camera.tick, "mirv_deathmsg clear")
-            _apply_pov_killfeed_filter(actions, camera.tick, camera.steamid)
+            _apply_killfeed(actions, camera.tick, sequence, camera.steamid)
 
         if missing_slots:
             raise ValueError(

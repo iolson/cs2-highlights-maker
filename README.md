@@ -10,6 +10,7 @@ highlights match.dem --player s1mple      # one player's highlights only
 highlights match.dem --players s1mple,device   # several players (comma-separated or repeated)
 highlights match.dem --json-only          # analysis only, no recording
 highlights match.dem --cinematic          # also re-record each play through your cam paths
+highlights match.dem --cinematic --cinematic-mode splice   # cut the cinematic into the POV during down time
 highlights doctor                         # environment check
 highlights update-tools                   # re-download latest HLAE/FFmpeg
 ```
@@ -111,7 +112,24 @@ purchased observer pack) and keep them out of git.
    best matches. Each cinematic clip follows its POV clip in the final video,
    and the JSON report marks it with `"cinematic": {"campath", "of_sequence"}`
    (its `beat_targets` entries carry `"cinematic": true`).
-3. `highlights doctor` shows how many cam paths were found.
+3. Cinematic clips show no kill feed (POV clips keep theirs).
+4. `--cinematic-mode splice` instead of the default `append` produces one clip
+   per play with the same length as the POV clip: the cinematic is cut in
+   during down time between kills, only while its camera is pointed at the
+   player, and the POV footage is kept from 1.5 s before to 1.5 s after each
+   kill. Per play, the cam path that can cut in for the longest stretch is
+   used (`--cinematic-takes` is ignored); plays no path can cover stay
+   POV-only. The planned cuts are in the JSON
+   (`cinematic.splice_segments`, clip seconds), so `--json-only` previews
+   them without recording. Because lengths are unchanged, kill times and
+   `beat_targets` are unaffected.
+5. `highlights doctor` shows how many cam paths were found.
+
+Splice limits: visibility is a view-cone test against the player's position
+and does not know about walls, so a cut can land on a camera that is pointed
+at the player but blocked by geometry; review `splice_segments` before a long
+run. The POV kill feed (which persists to the clip's end) disappears while a
+cinematic cut is showing.
 
 Notes: the path starts playing at the first recorded frame (`mirv_campath edit
 start`). If it is shorter than the clip, the view returns to the POV player

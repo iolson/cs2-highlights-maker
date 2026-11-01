@@ -9,23 +9,34 @@ Files are HLAE campath XML (`<campath><points><p t x y z .../>`); `.dz`,
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass, replace
-from math import dist
+from dataclasses import dataclass
+from math import cos, dist, radians, sin, sqrt
 from pathlib import Path
 
 from highlights.config import Config
-from highlights.models import Sequence
 from highlights.util.log import warn
 
 CAMPATH_SUFFIXES = {".dz", ".campath", ".xml"}
 
 
 @dataclass(frozen=True)
+class Keyframe:
+    t: float  # seconds since the first point
+    pos: tuple[float, float, float]  # x, y, z in HLAE campath space
+    forward: tuple[float, float, float]  # unit view direction (roll is ignored)
+    fov: float  # degrees, taken as horizontal
+
+
+@dataclass(frozen=True)
 class CamPath:
     name: str  # file stem, e.g. "A4"
     file: Path
-    points: tuple[tuple[float, float, float], ...]  # x, y, z in HLAE campath space
+    keyframes: tuple[Keyframe, ...]
     duration: float  # seconds between the first and last point
+
+    @property
+    def points(self) -> tuple[tuple[float, float, float], ...]:
+        return tuple(k.pos for k in self.keyframes)
 
 
 def default_campaths_dir() -> Path:
@@ -39,6 +50,22 @@ def resolve_campaths_dir(config: Config) -> Path:
     return default_campaths_dir()
 
 
+def _normalize(v: tuple[float, float, float]) -> tuple[float, float, float]:
+    length = sqrt(v[0] ** 2 + v[1] ** 2 + v[2] ** 2) or 1.0
+    return (v[0] / length, v[1] / length, v[2] / length)
+
+
+def _forward(attrib: dict[str, str]) -> tuple[float, float, float]:
+    """View direction of a point. Quaternion wins over Euler angles when both are
+    present (HLAE's rule). Quake space: x forward, y left, z up; positive pitch
+    looks down, positive yaw turns left."""
+    if all(key in attrib for key in ("qw", "qx", "qy", "qz")):
+        w, x, y, z = (float(attrib[key]) for key in ("qw", "qx", "qy", "qz"))
+        return _normalize((1 - 2 * (y * y + z * z), 2 * (x * y + w * z), 2 * (x * z - w * y)))
+    pitch, yaw = radians(float(attrib["ry"])), radians(float(attrib["rz"]))
+    return (cos(pitch) * cos(yaw), cos(pitch) * sin(yaw), -sin(pitch))
+
+
 def parse_campath(file: Path) -> CamPath | None:
     """Read a campath file; None when it has fewer than two usable points."""
     try:
@@ -46,18 +73,40 @@ def parse_campath(file: Path) -> CamPath | None:
     except (ET.ParseError, OSError) as exc:
         warn(f"Skipping cam path {file.name}: {exc}")
         return None
-    times: list[float] = []
-    points: list[tuple[float, float, float]] = []
+    raw: list[Keyframe] = []
     for p in root.iter("p"):
         try:
-            times.append(float(p.attrib["t"]))
-            points.append((float(p.attrib["x"]), float(p.attrib["y"]), float(p.attrib["z"])))
+            raw.append(
+                Keyframe(
+                    t=float(p.attrib["t"]),
+                    pos=(float(p.attrib["x"]), float(p.attrib["y"]), float(p.attrib["z"])),
+                    forward=_forward(p.attrib),
+                    fov=float(p.attrib.get("fov", 90)),
+                )
+            )
         except (KeyError, ValueError):
             continue
-    if len(points) < 2:
+    if len(raw) < 2:
         warn(f"Skipping cam path {file.name}: fewer than two points")
         return None
-    return CamPath(name=file.stem, file=file.resolve(), points=tuple(points), duration=max(times) - min(times))
+    raw.sort(key=lambda k: k.t)
+    start = raw[0].t
+    keyframes = tuple(Keyframe(k.t - start, k.pos, k.forward, k.fov) for k in raw)
+    return CamPath(name=file.stem, file=file.resolve(), keyframes=keyframes, duration=keyframes[-1].t)
+
+
+def pose_at(path: CamPath, t: float) -> tuple[tuple[float, float, float], tuple[float, float, float], float] | None:
+    """(position, forward, fov) of the camera t seconds after the path starts, or
+    None outside the path. Linear interpolation (HLAE's own curve is smoother)."""
+    keys = path.keyframes
+    if t < 0 or t > path.duration:
+        return None
+    for a, b in zip(keys, keys[1:]):
+        if a.t <= t <= b.t:
+            w = 0.0 if b.t == a.t else (t - a.t) / (b.t - a.t)
+            lerp = lambda u, v: tuple(x + (y - x) * w for x, y in zip(u, v))  # noqa: E731
+            return lerp(a.pos, b.pos), _normalize(lerp(a.forward, b.forward)), a.fov + (b.fov - a.fov) * w
+    return keys[-1].pos, keys[-1].forward, keys[-1].fov
 
 
 def load_campaths(base: Path, map_name: str) -> list[CamPath]:
@@ -86,60 +135,3 @@ def rank_campaths(campaths: list[CamPath], targets: list[tuple[float, float, flo
         return sum(min(dist(point, target) for point in path.points) for target in targets) / len(targets)
 
     return sorted(campaths, key=lambda path: (score(path), path.name))
-
-
-def _action_targets(spatial: dict | None) -> list[tuple[float, float, float]]:
-    """World positions to frame: the selected kills, else the primary action center."""
-    if not spatial:
-        return []
-    centers = [
-        e["engagement_center"]
-        for e in spatial.get("engagements", [])
-        if e.get("is_selected_moment_kill") and e.get("engagement_center")
-    ]
-    if not centers and spatial.get("primary_action_center_xyz"):
-        centers = [spatial["primary_action_center_xyz"]]
-    return [(c["x"], c["y"], c["z"]) for c in centers]
-
-
-def add_cinematic_sequences(
-    sequences: list[Sequence],
-    campaths: list[CamPath],
-    spatial_by_sequence: dict[int, dict],
-    tickrate: float,
-    takes: int = 1,
-) -> tuple[list[Sequence], dict[int, dict]]:
-    """Follow each POV sequence with `takes` cinematic re-recordings of the same ticks.
-
-    Returns the interleaved list renumbered 1..N (so final clips stack POV, then
-    its cinematics) and the spatial metadata re-keyed to the new numbers.
-    """
-    result: list[Sequence] = []
-    spatial: dict[int, dict] = {}
-
-    def append(sequence: Sequence, source_number: int, **changes: object) -> None:
-        number = len(result) + 1
-        result.append(replace(sequence, number=number, **changes))
-        if source_number in spatial_by_sequence:
-            spatial[number] = spatial_by_sequence[source_number]
-
-    for sequence in sequences:
-        append(sequence, sequence.number)
-        pov_number = len(result)
-        ranked = rank_campaths(campaths, _action_targets(spatial_by_sequence.get(sequence.number)))
-        if not ranked:
-            warn(f"{sequence.label}: no spatial data to match cam paths, no cinematic take")
-        for path in ranked[:takes]:
-            if path.duration < sequence.duration_seconds(tickrate):
-                warn(
-                    f"{sequence.label}: cam path {path.name} runs {path.duration:.0f}s, shorter "
-                    "than the clip; the POV view returns when it ends"
-                )
-            append(
-                sequence,
-                sequence.number,
-                label=f"{sequence.label} — cinematic {path.name}",
-                campath=path.file,
-                cinematic_of=pov_number,
-            )
-    return result, spatial

@@ -141,6 +141,8 @@ class Sequence:
     # Cinematic re-recording of another sequence's ticks through a user cam path.
     campath: Path | None = None
     cinematic_of: int | None = None
+    # Clip-second ranges where the cinematic replaces the POV footage (splice mode).
+    splice_segments: list[tuple[float, float]] | None = None
 
     @property
     def name(self) -> str:

@@ -4,11 +4,8 @@ from conftest import make_demo, make_kill, make_round
 
 from highlights.config import RecordingConfig
 from highlights.models import CameraAction, Sequence
-from highlights.recording.campaths import (
-    add_cinematic_sequences,
-    load_campaths,
-    rank_campaths,
-)
+from highlights.recording.campaths import load_campaths, rank_campaths
+from highlights.recording.cinematic import add_cinematic_sequences
 from highlights.recording.sequences import build_actions_file
 
 
@@ -105,3 +102,18 @@ def test_actions_load_path_only_for_cinematic_sequences(tmp_path):
     assert len(loads) == 1 and "a.dz" in loads[0] and "\\" not in loads[0]
     assert cmds.index("mirv_campath edit start") > cmds.index(loads[0])
     assert cmds.count("mirv_campath clear") == 2  # reset at the setup of each sequence
+
+
+def test_cinematic_kill_feed_is_blocked_but_pov_feed_is_not(tmp_path):
+    file = write_path(tmp_path / "Nuke", "a", [(0, 0, 0, 0), (30, 10, 0, 0)])
+    demo = make_demo([make_kill(5000, attacker="111")], [make_round(0, 0, 100000)], slots={"111": 3})
+    pov = _sequence(1)
+    cinematic = Sequence(**{**pov.__dict__, "number": 2, "campath": file.resolve(), "cinematic_of": 1})
+    actions = build_actions_file(tmp_path / "m.dem", [pov, cinematic], demo, RecordingConfig(), tmp_path / "w")
+    groups = json.loads(actions.write().read_text())
+    pov_cmds = [a["cmd"] for a in groups[0]["actions"]]
+    cine_cmds = [a["cmd"] for a in groups[1]["actions"]]
+    assert any("attackerMatch=!x111" in c for c in pov_cmds)
+    assert not any("attackerMatch=!x111" in c for c in cine_cmds)
+    assert any("attackerMatch=!x0 block=1" in c for c in cine_cmds)
+    assert not any("localPlayer" in c for c in cine_cmds)

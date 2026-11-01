@@ -184,7 +184,15 @@ def write_report(
                 "duration_seconds": round(s.duration_seconds(demo.tickrate), 1),
                 "clip_filename": f"clip_{s.number:02d}.mp4",
                 "cinematic": (
-                    {"campath": s.campath.name, "of_sequence": s.cinematic_of}
+                    {
+                        "campath": s.campath.name,
+                        "of_sequence": s.cinematic_of,
+                        "splice_segments": (
+                            [{"start_seconds": a, "end_seconds": b} for a, b in s.splice_segments]
+                            if s.splice_segments is not None
+                            else None
+                        ),
+                    }
                     if s.campath is not None
                     else None
                 ),
