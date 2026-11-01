@@ -55,8 +55,8 @@ Ported from CSDM source (verified June 2026; local reference copies in
 - `demo_gototick` must run on an EARLIER tick than any `spec_player`
   (same-tick combo gets spec_player ignored since an Oct 2025 CS2 update,
   CSDM #1238), and `spec_mode 1` must precede `spec_player`.
-- Camera slot = demo `user_id` + 1 (CSDM convention). **Not yet validated
-  in-game** — first thing to verify when recording becomes possible.
+- Camera slot = demo `user_id` + 1 (CSDM convention). Validated in-game:
+  recorded clips show the intended POV player.
 - `pause_playback` goes at `start_tick - 4` (engine may skip ticks between
   pause request and actual pause).
 - FFmpeg preset string: `{QUOTE}` is HLAE's quote placeholder; output folder
@@ -128,16 +128,17 @@ Set per clip in `build_actions_file`; they deviate from stock CSDM on purpose.
   breaks injection (game dies ~2 s in with an `*_accessviolation.mdmp` next to
   cs2.exe — crashes go to Valve breakpad, NOT Windows event log). `doctor` has
   an "HLAE vs CS2 build" date check; fix = `update-tools` once advancedfx
-  releases. As of 2026-06-12 recording is blocked exactly this way
-  (CS2 1.41.6.5 of Jun 10 vs HLAE v2.190.2 of May 27); analysis is fully
-  verified, end-to-end recording is not.
+  releases. It blocked recording in June 2026 (CS2 1.41.6.5 vs HLAE v2.190.2)
+  and has since been resolved: end-to-end recording works on this machine.
+  After any CS2 update, run `doctor` first and `update-tools` if it flags the
+  HLAE date.
 - Refreshing `vendor/cs2-plugin/server.dll`: extract
   `resources/static/cs2/server*.dll` from the latest CSDM Windows installer.
   py7zr cannot decode it (BCJ2 filter) — carve the 7z payload at the
   signature offset and use standalone `7zr.exe`. Script kept locally in
   `.research/extract_plugin.py`.
 - Local test demo: `C:\Users\OS\Downloads\inferno.dem` (de_inferno, 21 rounds,
-  tickrate 64). Known-good PoC clip once HLAE works again:
+  tickrate 64). Known-good PoC clip:
   `record-one ... --start-tick 45771 --end-tick 47404 --steamid 76561198152383695`
   (Auttnic 4K, round 5).
 
