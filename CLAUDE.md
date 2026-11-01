@@ -10,6 +10,7 @@ Windows-only at the recording stage; analysis runs anywhere.
 .venv\Scripts\python -m pytest tests -q                  # unit tests (synthetic fixtures, no demo needed)
 .venv\Scripts\highlights doctor                          # environment diagnostic (run before touching recording)
 .venv\Scripts\highlights <demo> --json-only -o out.mp4   # analysis smoke test, writes out.json + rich table
+.venv\Scripts\highlights <demo> --json-only --cinematic   # preview cam-path matches (needs files in campaths/)
 .venv\Scripts\highlights record-one <demo> --start-tick A --end-tick B --steamid S   # hidden: single-clip recording PoC
 .venv\Scripts\highlights update-tools                    # re-download latest HLAE/FFmpeg after a CS2 update
 ```
@@ -29,7 +30,18 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   `steam.py` (registry+vdf autodetect), `toolchain.py` (HLAE/FFmpeg download),
   `plugin.py` (server.dll install + gameinfo.gi patch), `actions_file.py`
   (`<demo>.json` the plugin executes), `sequences.py` (per-clip command plan),
-  `hlae.py` (launch/inject/wait/crash-detect), `recorder.py` (orchestrator).
+  `hlae.py` (launch/inject/wait/crash-detect), `recorder.py` (orchestrator),
+  `campaths.py` (`--cinematic`: load user cam paths, match them to plays).
+- `spatial.py` — per-clip world-coordinate metadata (engagements, zones,
+  keyframes, POV trajectories) sampled from the demo; feeds the report and
+  cam-path matching. The only other file besides `parser.py` using demoparser2.
+- `report.py` — the JSON report (`schema_version` 3). `write_report` runs
+  BEFORE recording (timeline events with `seconds_from_clip_start` and nominal
+  frame estimates); `finalize_report` runs AFTER concat and adds
+  `video_start_seconds`, per-kill `video_time_seconds` and a flat
+  `beat_targets` list (POV kills only) from ffprobe clip durations, crossfade
+  overlap and `--timing-offset`. Times are nominal until calibrated against a
+  real clip (`editing.timing_status`).
 - `video/` — wav→aac mux, optional drawtext overlay, concat demuxer
   (stream-copy default) or xfade chain.
 
@@ -55,8 +67,34 @@ Ported from CSDM source (verified June 2026; local reference copies in
   and patches `gameinfo.gi` (backup → `gameinfo.gi.backup`); uninstall MUST
   run in `finally` — leaving gameinfo patched breaks the user's game on
   VAC servers.
+- `record()` deletes each `<work>/N-sequence/` before recording: the work dir
+  is per demo and the ffmpeg preset has no `-y`, so a stale `video.mp4` (from
+  `--keep-clips` on an earlier run) would block the new recording and be
+  returned as its result.
 - Expected outputs per sequence: `<work>/N-sequence/video.mp4` +
   `take*/audio.wav` (use the last take folder).
+
+## Cinematic cam paths (`--cinematic`)
+
+- Cam paths are third-party/purchased and MUST NEVER be committed or copied
+  into the repo (docs, tests, fixtures). They live in the gitignored
+  `campaths/<Map>/` folder (`campaths/*`, `*.dz`, `*.campath` are ignored;
+  only `campaths/README.md` is tracked) or wherever `paths.campaths_dir`
+  points. Tests generate their own tiny campath XML.
+- Flow: `cli.run` builds spatial metadata once → `add_cinematic_sequences`
+  appends, after each POV sequence, `--cinematic-takes N` copies over the same
+  ticks with `Sequence.campath` set (renumbered 1..N, `cinematic_of` = the POV
+  sequence's new number; spatial data re-keyed) → `write_report` is given that
+  precomputed spatial dict.
+- Commands (`sequences.py`): at `start_tick`, `mirv_campath enabled 1`,
+  `load "<abs forward-slash path>"`, `edit start` (no args = rebase the path to
+  the current demo time, as observer-pack binds do), then at `end_tick`
+  `enabled 0`. When any sequence is cinematic, every sequence's setup also
+  runs `enabled 0` + `clear` so a path never leaks into the next clip. Plain
+  runs emit no campath commands — keep it that way.
+- **Not yet validated in-game:** that campath coordinates equal demo world
+  coordinates (used to rank paths by distance to the kills), that `edit start`
+  works from the actions file, and what the view does after a shorter path ends.
 
 ## Environment gotchas (this machine)
 
