@@ -184,6 +184,56 @@ def sample_places(demo_path: Path, ticks: list[int]) -> list[tuple[float, float,
     return samples
 
 
+TRACK_HZ = 16  # position samples per second for generated cams
+
+
+def sample_pov_tracks(
+    demo: DemoData,
+    requests: dict[int, tuple[Sequence, list[tuple[float, float]]]],
+) -> dict[int, dict[str, list[tuple[float, tuple[float, float, float], float, float]]]]:
+    """Dense (clip seconds, xyz, yaw, pitch) tracks of each sequence's camera players.
+
+    `requests` maps a sequence number to the sequence and the clip-second ranges
+    that need data. One demo query serves every sequence; an unreadable demo gives
+    an empty result, so generated cams are skipped instead of failing the run.
+    """
+    rate = float(demo.tickrate)
+    step = max(1, round(rate / TRACK_HZ))
+    wanted: dict[int, set[int]] = {}
+    for number, (sequence, ranges) in requests.items():
+        ticks: set[int] = set()
+        for a, b in ranges:
+            first = sequence.start_tick + int(a * rate)
+            last = min(sequence.end_tick, sequence.start_tick + int(b * rate) + step)
+            ticks.update(range(first, last + 1, step))
+            ticks.add(last)
+        wanted[number] = ticks
+    all_ticks = sorted(set().union(*wanted.values())) if wanted else []
+    if not all_ticks:
+        return {}
+    try:
+        positions, _, _ = _query_positions(demo.path, all_ticks)
+    except BaseException as exc:
+        if not is_parser_error(exc):
+            raise
+        return {}
+    result: dict[int, dict[str, list]] = {}
+    for number, (sequence, _) in requests.items():
+        tracks: dict[str, list] = {}
+        for sid in sequence.featured_steamids:
+            samples = []
+            for tick in sorted(wanted[number]):
+                value = positions.get(tick, {}).get(sid)
+                if not value or value.get("yaw") is None or value.get("pitch") is None:
+                    continue
+                xyz = value["xyz"]
+                samples.append(((tick - sequence.start_tick) / rate, (xyz["x"], xyz["y"], xyz["z"]), value["yaw"], value["pitch"]))
+            if samples:
+                tracks[sid] = samples
+        result[number] = tracks
+    return result
+
+
 def _build_zones(engagements: list[dict]) -> list[dict]:
     """Cluster featured kills in timeline order. Do not conflate map floors."""
     groups: list[list[dict]] = []

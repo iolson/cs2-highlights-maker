@@ -145,6 +145,8 @@ class Sequence:
     splice_segments: list[tuple[float, float]] | None = None
     # Top cam path candidates considered for this play (name, distance, coverage).
     cinematic_candidates: list[dict] | None = None
+    # Generated-cam segments (start, end, kind, style) of a --intro-cam/--downtime-cam take.
+    dynamic_cam: list[dict] | None = None
 
     @property
     def name(self) -> str:

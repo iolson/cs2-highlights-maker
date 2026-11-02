@@ -172,6 +172,7 @@ def write_report(
                     "campath": s.campath.name,
                     "of_sequence": s.cinematic_of,
                     "candidates": s.cinematic_candidates,
+                    "generated_cams": s.dynamic_cam,
                     "splice_segments": (
                         [{"start_seconds": a, "end_seconds": b} for a, b in s.splice_segments]
                         if s.splice_segments is not None

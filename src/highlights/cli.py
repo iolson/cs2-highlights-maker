@@ -103,6 +103,18 @@ def _load_cinematic_inputs(config: Config, map_name: str) -> tuple[list, PlaceMa
     return campaths, place_map, labels
 
 
+def _parse_cam_styles(value: str | None) -> list[str] | None:
+    """Click callback for --intro-cam/--downtime-cam: style names, or None when unset."""
+    if value is None:
+        return None
+    from highlights.recording.dyncams import parse_styles
+
+    try:
+        return parse_styles(value)
+    except ValueError as exc:
+        raise click.BadParameter(str(exc))
+
+
 def _parse_player_names(values: tuple[str, ...]) -> dict[str, str]:
     """Parse `STEAMID=NAME` strings into a steamid -> name mapping (later values win)."""
     result: dict[str, str] = {}
@@ -179,6 +191,20 @@ def _parse_player_names(values: tuple[str, ...]) -> dict[str, str]:
     "POV clip during down time between kills",
 )
 @click.option(
+    "--intro-cam",
+    default=None,
+    callback=lambda ctx, param, value: _parse_cam_styles(value),
+    help="Open every clip with a generated cam that eases into the POV: face, profile, gun, tps, "
+    "heli, a comma-separated list, or random",
+)
+@click.option(
+    "--downtime-cam",
+    default=None,
+    callback=lambda ctx, param, value: _parse_cam_styles(value),
+    help="Cut a generated cam into the down time between kills wherever no cam path covers it "
+    "(same styles as --intro-cam)",
+)
+@click.option(
     "--timing-offset",
     type=float,
     default=0.0,
@@ -206,11 +232,15 @@ def run(
     cinematic_takes: int,
     cinematic_path: str | None,
     cinematic_mode: str,
+    intro_cam: list[str] | None,
+    downtime_cam: list[str] | None,
     timing_offset: float,
 ) -> None:
     """Parse DEMO, detect highlights, record them in-game and produce an MP4."""
     if suggest_cinematic and cinematic:
         raise click.UsageError("--suggest-cinematic is for previewing; use it without --cinematic")
+    if suggest_cinematic and (intro_cam or downtime_cam):
+        raise click.UsageError("--suggest-cinematic cannot be combined with --intro-cam/--downtime-cam")
     config = load_config()
     for section, name, value in (
         (config.selection, "top", top),
@@ -289,6 +319,20 @@ def run(
             labels=labels,
         )
 
+    if intro_cam or downtime_cam:
+        from highlights.recording.dyn_sequences import add_dynamic_sequences
+        from highlights.spatial import sample_pov_tracks
+
+        sequences, spatial = add_dynamic_sequences(
+            sequences,
+            spatial,
+            parsed,
+            sample_pov_tracks,
+            work_dir / "dyncams",
+            intro_cam,
+            downtime_cam,
+        )
+
     print_sequences_table(parsed, sequences, spatial)
     if suggestions is not None:
         print_suggestions_table(parsed, sequences, suggestions)
@@ -317,7 +361,7 @@ def run(
     tools = resolve_tools(config, auto_install=False)
     with console.status("Post-processing clips..."):
         recorded = [(o, process_clip(tools.ffmpeg_exe, o, work_dir / "clips", overlays)) for o in outputs]
-        if cinematic and cinematic_mode == "splice":
+        if any(o.sequence.splice_segments for o, _ in recorded):
             recorded = _splice_cinematics(tools.ffmpeg_exe, recorded, work_dir / "clips", config.recording.crf)
         outputs = [o for o, _ in recorded]
         clips = [c for _, c in recorded]
@@ -350,26 +394,30 @@ def run(
 
 
 def _splice_cinematics(ffmpeg_exe: Path, recorded: list, clips_dir: Path, crf: int) -> list:
-    """Replace each POV clip with its spliced version; cinematic clips leave the list.
+    """Replace each POV clip with its spliced version; spliced cinematic clips leave the list.
 
+    Takes of one play are overlaid in order (cam path first, generated cams on top).
     A cinematic whose POV clip failed to record is dropped; a POV clip whose
-    cinematic failed stays as it was."""
+    cinematic failed stays as it was. Append-mode takes (no segments) stay in the list."""
     from highlights.video.splice import splice_clip
 
-    cinematics = {o.sequence.cinematic_of: (o, c) for o, c in recorded if o.sequence.cinematic_of is not None}
+    takes: dict[int, list] = {}
+    for output, clip in recorded:
+        if output.sequence.cinematic_of is not None and output.sequence.splice_segments:
+            takes.setdefault(output.sequence.cinematic_of, []).append((output, clip))
     result = []
     for output, clip in recorded:
         sequence = output.sequence
-        if sequence.cinematic_of is not None:
+        if sequence.cinematic_of is not None and sequence.splice_segments:
             continue
-        cinematic = cinematics.get(sequence.number)
-        if cinematic and cinematic[0].sequence.splice_segments:
+        ordered = sorted(takes.get(sequence.number, []), key=lambda take: take[0].sequence.dynamic_cam is not None)
+        for step, (take, take_clip) in enumerate(ordered):
             clip = splice_clip(
                 ffmpeg_exe,
                 clip,
-                cinematic[1],
-                cinematic[0].sequence.splice_segments,
-                clips_dir / f"spliced_{sequence.number:02d}.mp4",
+                take_clip,
+                take.sequence.splice_segments,
+                clips_dir / f"spliced_{sequence.number:02d}_{step}.mp4",
                 crf,
             )
         result.append((output, clip))

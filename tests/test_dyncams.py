@@ -1,0 +1,148 @@
+import math
+
+import pytest
+
+from highlights.recording.campaths import load_campaths
+from highlights.recording.dyncams import (
+    DOWNTIME_MAX,
+    EYE_HEIGHT,
+    OPENER_SECONDS,
+    POV_GAP,
+    STYLES,
+    Pose,
+    Segment,
+    build_keyframes,
+    eye_pose_at,
+    look_at,
+    parse_styles,
+    pick_style,
+    plan_segments,
+    segment_pose,
+    style_pose,
+    write_campath,
+)
+from highlights.recording.splice_plan import MIN_SEGMENT
+
+EYE = Pose((100.0, 200.0, 64.0), 30.0, 5.0, 90.0)
+
+
+def close(a, b, tol=1e-6):
+    return all(abs(x - y) <= tol for x, y in zip(a, b))
+
+
+def test_look_at_conventions():
+    assert look_at((0, 0, 0), (10, 0, 0)) == pytest.approx((0.0, 0.0))
+    assert look_at((0, 0, 0), (0, 10, 0))[0] == pytest.approx(90.0)  # +y is positive yaw
+    assert look_at((0, 0, 10), (0, 0, 0))[1] > 80  # looking down is positive pitch
+
+
+def test_eye_pose_adds_eye_height_and_interpolates_yaw_the_short_way():
+    track = [(0.0, (0, 0, 0), 350.0, 0.0), (1.0, (10, 0, 0), 10.0, 10.0)]
+    pose = eye_pose_at(track, 0.5)
+    assert pose.pos == (5.0, 0.0, EYE_HEIGHT)
+    assert pose.yaw == pytest.approx(0.0, abs=1e-6) or pose.yaw == pytest.approx(360.0)
+    assert pose.pitch == pytest.approx(5.0)
+    assert eye_pose_at(track, 2.0) is None
+    assert eye_pose_at(track, 1.1).pos == (10.0, 0.0, EYE_HEIGHT)  # within the slack: last pose held
+
+
+@pytest.mark.parametrize("style", STYLES)
+def test_every_style_has_a_shot_that_faces_the_player(style):
+    pose = style_pose(style, EYE, 0.0)
+    assert math.dist(pose.pos, EYE.pos) > 30
+    if style != "tps":  # tps looks where the player looks, the others at them
+        yaw, _ = look_at(pose.pos, EYE.pos)
+        assert abs((pose.yaw - yaw + 180) % 360 - 180) < 15
+
+
+def test_face_is_in_front_and_tps_behind():
+    f = (math.cos(math.radians(EYE.yaw)), math.sin(math.radians(EYE.yaw)))
+    for style, sign in (("face", 1), ("tps", -1)):
+        pose = style_pose(style, EYE, 0.0)
+        along = (pose.pos[0] - EYE.pos[0]) * f[0] + (pose.pos[1] - EYE.pos[1]) * f[1]
+        assert along * sign > 20
+
+
+def test_unknown_style_is_rejected():
+    with pytest.raises(ValueError):
+        style_pose("drone", EYE, 0.0)
+
+
+@pytest.mark.parametrize("style", STYLES)
+def test_intro_ends_exactly_on_the_eye_and_downtime_on_both_ends(style):
+    intro = Segment(0.0, 3.0, "intro", style)
+    end = segment_pose(intro, EYE, 3.0)
+    assert close(end.pos, EYE.pos) and end.yaw == pytest.approx(EYE.yaw) and end.fov == pytest.approx(EYE.fov)
+    assert not close(segment_pose(intro, EYE, 0.0).pos, EYE.pos, 1.0)
+    down = Segment(2.0, 5.0, "downtime", style)
+    for t in (2.0, 5.0):
+        assert close(segment_pose(down, EYE, t).pos, EYE.pos)
+    assert not close(segment_pose(down, EYE, 3.5).pos, EYE.pos, 1.0)
+
+
+def test_plan_opener_stops_before_the_first_kill():
+    segs = plan_segments(20.0, [4.0, 10.0], [], "face", None)
+    assert segs == [Segment(0.0, 3.0, "intro", "face")]  # kill at 4.0 minus the 1 s padding
+    assert plan_segments(20.0, [2.0], [], "face", None) == []  # not even a minimum cut fits
+    assert plan_segments(20.0, [9.0], [], "face", None)[0].end == OPENER_SECONDS
+
+
+def test_plan_downtime_uses_gaps_caps_length_and_leaves_a_pov_gap():
+    segs = plan_segments(30.0, [4.0, 20.0], [], "face", "tps")
+    assert [s.kind for s in segs] == ["intro", "downtime", "downtime"]  # opener, gap between kills, tail
+    down = segs[1]
+    assert down.start >= 3.0 + POV_GAP and down.start == pytest.approx(5.0)  # after the kill's padding
+    assert down.end - down.start <= DOWNTIME_MAX
+    assert all(s.end - s.start >= MIN_SEGMENT for s in segs)
+    # never inside the POV padding around the kills
+    assert all(not (s.start < 5.0 and s.end > 3.0) for s in segs if s.kind == "downtime")
+
+
+def test_plan_avoids_real_path_ranges_and_camera_switches():
+    segs = plan_segments(30.0, [2.0, 29.0], [10.0], None, "face", taken=[(5.0, 8.0)])
+    spans = [(s.start, s.end) for s in segs]
+    assert all(not (a < 8.0 and b > 5.0) for a, b in spans)
+    assert all(not (a < 10.0 < b) for a, b in spans)
+
+
+def test_no_styles_no_segments():
+    assert plan_segments(30.0, [10.0], [], None, None) == []
+
+
+def test_parse_styles_and_pick_style():
+    assert parse_styles("Face, tps,face") == ["face", "tps"]
+    assert parse_styles("random") == list(STYLES)
+    with pytest.raises(ValueError):
+        parse_styles("drone")
+    assert pick_style(["heli"], 5) == "heli"
+    assert pick_style(list(STYLES), 7) == pick_style(list(STYLES), 7)
+
+
+def test_keyframes_hold_the_first_pose_from_time_zero_and_round_trip(tmp_path):
+    segs = [Segment(2.0, 4.0, "downtime", "profile")]
+    keys = build_keyframes(segs, lambda t: EYE)
+    assert keys[0][0] == 0.0 and keys[1][0] == 2.0 and keys[0][1] == keys[1][1]
+    file = write_campath(tmp_path / "Nuke" / "gen.campath", keys)
+    path = load_campaths(tmp_path, "de_nuke")[0]
+    assert path.duration == pytest.approx(4.0)
+    # the quaternion round-trips to the pose's view direction
+    pose = keys[len(keys) // 2][1]
+    yaw, pitch = math.radians(pose.yaw), math.radians(pose.pitch)
+    expected = (math.cos(pitch) * math.cos(yaw), math.cos(pitch) * math.sin(yaw), -math.sin(pitch))
+    mid = min(path.keyframes, key=lambda k: abs(k.t - keys[len(keys) // 2][0]))
+    assert close(mid.forward, expected, 1e-4)
+    assert file.exists()
+
+
+def test_keyframes_raise_when_the_player_position_is_unknown():
+    with pytest.raises(ValueError):
+        build_keyframes([Segment(0.0, 2.0, "intro", "face")], lambda t: None)
+
+
+def test_quaternions_stay_on_one_side_across_a_yaw_wrap(tmp_path):
+    keys = [(0.0, Pose((0, 0, 0), 179.0, 0.0, 90.0)), (1.0, Pose((0, 0, 0), 181.0, 0.0, 90.0))]
+    text = write_campath(tmp_path / "w.campath", keys).read_text()
+    import re
+
+    quats = [tuple(float(v) for v in m) for m in re.findall(r'qw="([-\d.]+)" qx="([-\d.]+)" qy="([-\d.]+)" qz="([-\d.]+)"', text)]
+    assert sum(a * b for a, b in zip(*quats)) > 0
