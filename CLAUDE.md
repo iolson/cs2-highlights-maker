@@ -60,6 +60,18 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   `--cinematic-mode splice` would record. CLI: `--suggest-cinematic` (preview table + report key
   `cinematic_suggestion`; not combinable with `--cinematic`). Results are keyed by the INPUT
   sequence numbers (the cinematic pass renumbers its output).
+- `recording/dyncams.py` + `dyn_sequences.py` — `--intro-cam` / `--downtime-cam`: generated cam
+  paths (face/profile/gun/tps/heli) computed from dense POV tracks
+  (`spatial.sample_pov_tracks`, 16 Hz, yaw/pitch) as an extra cinematic take per play
+  (`Sequence.dynamic_cam`, `splice_segments`, report `cinematic.generated_cams`). Intro
+  segments end exactly on the first-person eye pose (z + `EYE_HEIGHT` 64; crouching is not
+  modelled) so the hand-off is seamless; down-time segments start and end on it. Paths are
+  rebased to the first recorded frame, so a path whose first segment starts late holds that
+  first pose from t=0. `plan_segments` reuses the splice kill padding, avoids ranges a real
+  splice take covers, and splits at camera switches. `cli._splice_cinematics` overlays
+  real takes first, generated ones on top; append-mode takes stay in the list. Styles are
+  offset estimates (constants/`style_pose`), no wall check, `POV_FOV` and in-game model
+  visibility unvalidated. Not combinable with `--suggest-cinematic` (renumbering).
 - `routes.py` — `clip_route(sequence, spatial)`: the places the POV player moves through
   (from the place hints already sampled in spatial metadata) and where each selected kill
   landed; stored as `spatial.route` and shown as the "Where" column of the highlights table.
@@ -116,13 +128,17 @@ Set per clip in `build_actions_file`; they deviate from stock CSDM on purpose.
   rename — recheck them if a CS2 update changes crosshair behavior).
   `cl_show_observer_crosshair 0` is set alongside it.
 - **Kill feed:** only the active POV player's kills appear
-  (`mirv_deathmsg filter add attackerMatch=!x<steamid> block=1 lastRule=1`,
-  plus `localPlayer x<steamid>` so they are highlighted). The filter is
+  (`mirv_deathmsg filter add attackerMatch=!x<steamid> block=1 lastRule=1`).
+  No `localPlayer` highlight any more: the feed holds only the POV's kills. The filter is
   re-applied at setup and on every camera switch, together with
   `mirv_deathmsg clear`, so the feed never carries the previous POV's kills.
 - **Kill-feed lifetime:** `max(60, clip seconds + 10)` with `lifetimeMod 1.0`,
   so POV kills persist to the end of the clip instead of fading after 5 s.
   `recording.death_notices_duration` is therefore no longer used here.
+- **Kill-feed colors:** `recording.killfeed_ct_color` / `killfeed_t_color` (`"#RRGGBB"` or
+  `"#RRGGBBAA"`, default `""` = game colors) emit `mirv_deathmsg colors ct|t R G B A` at each
+  sequence's setup tick (`killfeed_color_commands`; invalid values warn and are skipped).
+  Per the HLAE wiki; whether AfxHookSource2 applies them is NOT yet validated in-game.
 - **Name overrides:** `recording.player_names` (SteamID64 → name, TOML table
   `[recording.player_names]`) emits `mirv_replace_name byXuid add x<id> "<name>"`
   at each sequence's setup tick (`--player-name STEAMID=NAME`, repeatable, merges

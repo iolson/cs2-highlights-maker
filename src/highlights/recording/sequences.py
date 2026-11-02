@@ -20,6 +20,7 @@ from highlights.config import RecordingConfig
 from highlights.demo.parser import DemoData
 from highlights.models import Sequence
 from highlights.recording.actions_file import ActionsFile
+from highlights.util.log import warn
 
 # Audio: keep weapon sounds, footsteps, grenades, etc.; remove CS2's music.
 AUDIO_COMMANDS = (
@@ -93,10 +94,35 @@ def name_override_commands(player_names: dict[str, str]) -> list[str]:
     return commands
 
 
+def hex_to_rgba(value: str) -> str | None:
+    """"#RRGGBB" / "#RRGGBBAA" -> "R G B A" (alpha defaults to 255); None when not a hex color."""
+    text = value.strip().removeprefix("#")
+    if len(text) not in (6, 8) or any(c not in "0123456789abcdefABCDEF" for c in text):
+        return None
+    channels = [int(text[i : i + 2], 16) for i in range(0, len(text), 2)]
+    if len(channels) == 3:
+        channels.append(255)
+    return " ".join(str(c) for c in channels)
+
+
+def killfeed_color_commands(recording: RecordingConfig) -> list[str]:
+    """`mirv_deathmsg colors` for the configured team colors; invalid values are warned about and skipped."""
+    commands = []
+    for team, value in (("ct", recording.killfeed_ct_color), ("t", recording.killfeed_t_color)):
+        if not value.strip():
+            continue
+        rgba = hex_to_rgba(value)
+        if rgba is None:
+            warn(f"Ignoring killfeed_{team}_color {value!r}: expected #RRGGBB or #RRGGBBAA")
+            continue
+        commands.append(f"mirv_deathmsg colors {team} {rgba}")
+    return commands
+
+
 def _apply_pov_killfeed_filter(
     actions: ActionsFile, tick: int, steamid: str
 ) -> None:
-    """Allow only kills by this POV player, and highlight them in the feed.
+    """Allow only kills by this POV player (no highlight: the feed holds nothing else).
 
     `attackerMatch=!x... block=1 lastRule=1` is documented by Advancedfx
     for excluding every death notice whose attacker is not this SteamID.
@@ -106,7 +132,6 @@ def _apply_pov_killfeed_filter(
         tick,
         f"mirv_deathmsg filter add attackerMatch=!x{steamid} block=1 lastRule=1",
     )
-    actions.add_exec(tick, f"mirv_deathmsg localPlayer x{steamid}")
 
 
 def _apply_killfeed(actions: ActionsFile, tick: int, sequence: Sequence, steamid: str) -> None:
@@ -134,6 +159,7 @@ def build_actions_file(
     # runs emit exactly the commands they always did.
     uses_campaths = any(s.campath for s in sequences)
     name_overrides = name_override_commands(recording.player_names)
+    killfeed_colors = killfeed_color_commands(recording)
 
     for i, sequence in enumerate(sequences):
         if not sequence.cameras:
@@ -151,8 +177,7 @@ def build_actions_file(
             actions.add_exec(1, command)
         actions.add_exec(1, f"cl_draw_only_deathnotices {1 if recording.clean_hud else 0}")
         actions.add_exec(1, f"mirv_deathmsg lifetime {killfeed_lifetime}")
-        # POV kills are marked localPlayer, so explicitly keep their
-        # lifetime multiplier at 1.0 (no shortened expiry).
+        # Keep the lifetime multiplier at 1.0 so no notice expires early.
         actions.add_exec(1, "mirv_deathmsg lifetimeMod 1.0")
         actions.add_exec(1, "mirv_deathmsg filter clear")
 
@@ -167,7 +192,7 @@ def build_actions_file(
         actions.add_exec(setup_tick, "mirv_deathmsg lifetimeMod 1.0")
         # Reset stale kills from the preceding sequence.
         actions.add_exec(setup_tick, "mirv_deathmsg clear")
-        for command in name_overrides:
+        for command in (*name_overrides, *killfeed_colors):
             actions.add_exec(setup_tick, command)
         actions.add_exec(setup_tick, "spec_show_xray 0")
         actions.add_exec(setup_tick, "mp_display_kill_assists 1")

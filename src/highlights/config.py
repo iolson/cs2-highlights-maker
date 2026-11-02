@@ -44,6 +44,9 @@ class RecordingConfig:
     clean_hud: bool = True  # cl_draw_only_deathnotices 1
     # SteamID64 -> display name, applied with `mirv_replace_name byXuid` (HUD only).
     player_names: dict[str, str] = field(default_factory=dict)
+    # Kill-feed team colors as "#RRGGBB" or "#RRGGBBAA" (mirv_deathmsg colors); "" = game default.
+    killfeed_ct_color: str = ""
+    killfeed_t_color: str = ""
 
 
 @dataclass

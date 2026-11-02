@@ -53,3 +53,42 @@ def test_insertion_order_preserved():
         'mirv_replace_name byXuid add x76561198000000006 "First"',
         'mirv_replace_name byXuid add x76561198000000005 "Second"',
     ]
+
+
+# ---- kill-feed colors -------------------------------------------------------
+
+
+def test_hex_to_rgba():
+    from highlights.recording.sequences import hex_to_rgba
+
+    assert hex_to_rgba("#00ACE7") == "0 172 231 255"
+    assert hex_to_rgba("f6ca26") == "246 202 38 255"
+    assert hex_to_rgba("#F6CA2680") == "246 202 38 128"
+    assert hex_to_rgba("#12345") is None and hex_to_rgba("#GGGGGG") is None
+
+
+def test_killfeed_color_commands_skip_empty_and_invalid():
+    from highlights.config import RecordingConfig
+    from highlights.recording.sequences import killfeed_color_commands
+
+    assert killfeed_color_commands(RecordingConfig()) == []
+    both = RecordingConfig(killfeed_ct_color="#00ACE7", killfeed_t_color="#F6CA26")
+    assert killfeed_color_commands(both) == [
+        "mirv_deathmsg colors ct 0 172 231 255",
+        "mirv_deathmsg colors t 246 202 38 255",
+    ]
+    assert killfeed_color_commands(RecordingConfig(killfeed_ct_color="blue")) == []
+
+
+def test_actions_file_has_colors_and_no_local_player_highlight(tmp_path):
+    from test_campaths import _sequence
+    from highlights.config import RecordingConfig
+    from highlights.recording.sequences import build_actions_file
+    from conftest import make_demo
+
+    demo = make_demo([], [], slots={"111": 1})
+    recording = RecordingConfig(killfeed_ct_color="#00ACE7", killfeed_t_color="#F6CA26")
+    actions = build_actions_file(tmp_path / "d.dem", [_sequence()], demo, recording, tmp_path)
+    text = actions.write().read_text(encoding="utf-8")
+    assert "mirv_deathmsg colors ct 0 172 231 255" in text and "mirv_deathmsg colors t 246 202 38 255" in text
+    assert "localPlayer" not in text

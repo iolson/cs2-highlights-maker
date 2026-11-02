@@ -11,6 +11,8 @@ highlights match.dem --players s1mple,device   # several players (comma-separate
 highlights match.dem --json-only          # analysis only, no recording
 highlights match.dem --cinematic          # also re-record each play through your cam paths
 highlights match.dem --cinematic --cinematic-mode splice   # cut the cinematic into the POV during down time
+highlights match.dem --intro-cam face     # open each clip with a generated face cam that eases into the POV
+highlights match.dem --downtime-cam random   # cut generated cams into down time between kills
 highlights doctor                         # environment check
 highlights update-tools                   # re-download latest HLAE/FFmpeg
 ```
@@ -110,6 +112,9 @@ height = 1080
 crf = 23
 lead_in_seconds = 4.0
 lead_out_seconds = 3.0
+# Optional kill-feed team colors (#RRGGBB or #RRGGBBAA); leave out for the game's own.
+killfeed_ct_color = "#00ACE7"
+killfeed_t_color = "#F6CA26"
 
 # Optional: show custom names (SteamID64 = "name") via HLAE's mirv_replace_name.
 # HLAE only renames "some parts of the HUD"; check the kill feed in-game.
@@ -183,6 +188,33 @@ Notes: the path starts playing at the first recorded frame (`mirv_campath edit
 start`). If it is shorter than the clip, the view returns to the POV player
 when it ends, and a warning is printed. Matching assumes cam path coordinates
 equal demo world coordinates, which has not been verified in-game yet.
+
+## Generated cams (`--intro-cam`, `--downtime-cam`)
+
+No cam path files needed: the tool computes a cam path from the demo that follows the POV
+player and records it as an extra take, which is cut into the POV clip like a splice-mode
+cinematic (clip length, kill times and audio are unchanged).
+
+Styles: `face`, `profile`, `gun`, `tps` (over the shoulder), `heli` (high, looking down).
+Pass one, a comma-separated list, or `random` (a style is picked per cut, the same way on
+every run of the same demo).
+
+- `--intro-cam STYLE` opens every clip (up to 3.5 s, shorter when a kill comes early) on
+  the style's shot and eases into the exact first-person eye pose, so the cut to the POV
+  has no jump.
+- `--downtime-cam STYLE` uses the gaps between kills (same kill padding as splice mode,
+  at most 4 s per cut, 1 s of plain POV after the opener, split at POV switches): the
+  camera eases out of the eye pose, holds the shot and eases back. Ranges a
+  `--cinematic --cinematic-mode splice` cam path already covers are left to that path,
+  so the cam path wins and generated cams only fill what is left.
+
+Both can be combined with each other and with `--cinematic`; the JSON report lists the cuts
+under `cinematic.generated_cams`. They are not checked against map geometry: a camera can
+end up inside a wall (worst for `face`, `profile` and `tps` next to walls, and `heli`
+indoors), so review each run. The offsets are estimates, tuned in
+`src/highlights/recording/dyncams.py`. Not validated in-game yet: that the observed
+player's model is drawn while a cam path is active, the cam path fov value, and the
+hand-off to the POV.
 
 ## Important notes
 
