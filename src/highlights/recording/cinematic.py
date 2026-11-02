@@ -11,10 +11,10 @@ from highlights.models import Sequence
 from highlights.places import PlaceMap
 from highlights.recording.campaths import CamPath, path_distance, rank_campaths
 from highlights.recording.path_routes import path_route
-from highlights.recording.splice_plan import Point, Trajectory, coverage, plan_splice, position_at
+from highlights.recording.splice_plan import MIN_SEGMENT, Point, Trajectory, coverage, plan_splice, position_at
 from highlights.util.log import info, warn
 
-MIN_COVERAGE = 3.0  # seconds a path must be able to cut in for to be used in splice mode
+MIN_COVERAGE = MIN_SEGMENT  # seconds a path must cut in for to be used in splice mode: at least one cut
 CANDIDATES_SHOWN = 3
 
 
@@ -171,7 +171,7 @@ def add_cinematic_sequences(
         if chosen is None:
             say(
                 "warn",
-                f"{sequence.label}: no cam path sees the player for {MIN_COVERAGE:.0f}s of down time, "
+                f"{sequence.label}: no cam path sees the player for {MIN_COVERAGE:g}s of down time, "
                 f"POV only — closest were {_describe(shown)}",
             )
             continue

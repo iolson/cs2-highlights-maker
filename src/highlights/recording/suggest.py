@@ -103,7 +103,7 @@ def _suggest(
             shared = ", ".join(sorted(set(clip_places) & set(best["route"])))
             why.append(f"path passes {shared}")
     else:
-        why.append(f"no cam path sees the player for {MIN_COVERAGE:.0f}s of down time")
+        why.append(f"no cam path sees the player for {MIN_COVERAGE:g}s of down time")
     for view in (*([best] if best else []), *alternatives):
         view.pop("_chosen")
     if best and strong and compact and best["coverage_seconds"] >= GOOD_COVERAGE:

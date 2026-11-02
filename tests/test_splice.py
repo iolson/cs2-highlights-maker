@@ -144,10 +144,14 @@ def test_splice_mode_requires_minimum_coverage(tmp_path):
     sequence, paths, spatial = _play(tmp_path, {"blind": [(0, 400, 0, 0, 0, 180), (30, 400, 0, 0, 0, 180)]})
     result, _ = add_cinematic_sequences([sequence], paths, spatial, 64.0, splice=True)
     assert len(result) == 1
-    # A path that only covers ~2 s is below MIN_COVERAGE too.
-    sequence, paths, spatial = _play(tmp_path / "b", {"brief": [(0, 100, 0, 0, 0, 0), (2, 100, 0, 0, 0, 0)]})
+    # A path that sees the player for less than MIN_COVERAGE (one minimum cut) is rejected ...
+    sequence, paths, spatial = _play(tmp_path / "b", {"brief": [(0, 100, 0, 0, 0, 0), (1, 100, 0, 0, 0, 0)]})
     result, _ = add_cinematic_sequences([sequence], paths, spatial, 64.0, splice=True)
     assert len(result) == 1
+    # ... while one that covers a bit more than that is used.
+    sequence, paths, spatial = _play(tmp_path / "c", {"enough": [(0, 100, 0, 0, 0, 0), (2, 100, 0, 0, 0, 0)]})
+    result, _ = add_cinematic_sequences([sequence], paths, spatial, 64.0, splice=True)
+    assert len(result) == 2 and result[1].campath.stem == "enough"
 
 
 def test_forced_path_overrides_matching(tmp_path):

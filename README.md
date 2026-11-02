@@ -155,7 +155,7 @@ purchased observer pack) and keep them out of git.
    player. The POV footage is kept from 1 s before to 1 s after each kill
    (less when two kills are close together, so a cut still fits between
    them). Per play, the cam path that passes closest to the kills is used,
-   provided it can cut in for at least 3 s (`--cinematic-takes` is ignored);
+   provided it can cut in for at least 1.5 s, one minimum cut (`--cinematic-takes` is ignored);
    plays no path can cover stay POV-only. The planned cuts are in the JSON
    (`cinematic.splice_segments`, clip seconds), so `--json-only` previews
    them without recording. Because lengths are unchanged, kill times and

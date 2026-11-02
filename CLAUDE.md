@@ -159,7 +159,7 @@ Set per clip in `build_actions_file`; they deviate from stock CSDM on purpose.
   player's feet never sees them: `CAM_BELOW_TOLERANCE`), runs < 1.5 s dropped. Path choice is
   proximity-first (height difference weighted ×2, `VERTICAL_WEIGHT`, so paths on another
   floor rank behind same-floor ones) (same ranking as append mode): the closest path whose coverage
-  is ≥ `MIN_COVERAGE` (3 s) wins — coverage is only a gate, NOT the ranking (an
+  is ≥ `MIN_COVERAGE` (= `MIN_SEGMENT`, 1.5 s: at least one cut) wins — coverage is only a gate, NOT the ranking (an
   earlier longest-coverage ranking picked far wide cameras that "see" the player
   through walls). Plays with no eligible path get no cinematic. Candidates
   (distance + coverage) are logged and stored in `cinematic.candidates`;
