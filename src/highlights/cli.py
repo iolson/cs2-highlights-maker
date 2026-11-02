@@ -22,7 +22,13 @@ from highlights.demo.parser import DemoData, ensure_dem_file, parse_demo
 from highlights.demo.players import PlayerNotFound, resolve_players
 from highlights.models import CameraAction, Moment, Sequence
 from highlights.places import PlaceMap, load_places, places_dir, save_places
-from highlights.report import finalize_report, print_sequences_table, print_top_table, write_report
+from highlights.report import (
+    finalize_report,
+    print_sequences_table,
+    print_suggestions_table,
+    print_top_table,
+    write_report,
+)
 from highlights.spatial import sample_places
 from highlights.util.log import console, error, info, warn
 
@@ -73,6 +79,30 @@ def _analyze(demo: DemoData, config: Config, queries: list[str]) -> list[Sequenc
     return select_sequences(moments, demo, config.selection, config.recording, player_steamids)
 
 
+def _load_cinematic_inputs(config: Config, map_name: str) -> tuple[list, PlaceMap | None, dict[str, str]]:
+    """Cam paths, place map and labels for a cinematic run (shared by --cinematic and --suggest-cinematic)."""
+    from highlights.places import load_places
+    from highlights.recording.campaths import load_campaths, resolve_campaths_dir
+    from highlights.recording.path_routes import load_labels
+
+    campaths_dir = resolve_campaths_dir(config)
+    campaths = load_campaths(campaths_dir, map_name)
+    if not campaths:
+        raise click.ClickException(
+            f"No cam paths for {map_name} in {campaths_dir} — "
+            "put them in a folder named after the map (see README, 'Cinematic cam paths')"
+        )
+    info(f"Cinematic: {len(campaths)} cam path(s) found for {map_name}")
+    place_map = load_places(map_name)
+    if place_map is None:
+        warn(
+            f"No place map for {map_name} — run `highlights places build DEMO...` "
+            "to see where cam paths go"
+        )
+    labels = load_labels(campaths_dir, map_name)
+    return campaths, place_map, labels
+
+
 def _parse_player_names(values: tuple[str, ...]) -> dict[str, str]:
     """Parse `STEAMID=NAME` strings into a steamid -> name mapping (later values win)."""
     result: dict[str, str] = {}
@@ -117,6 +147,13 @@ def _parse_player_names(values: tuple[str, ...]) -> dict[str, str]:
     type=click.Choice(["none", "fade"]),
     default="none",
     help="Transition between clips (fade re-encodes, slower)",
+)
+@click.option(
+    "--suggest-cinematic",
+    "suggest_cinematic",
+    is_flag=True,
+    help="Show which clips suit a cinematic and the best cam path for each "
+    "(needs cam paths for the map; nothing is recorded for this)",
 )
 @click.option(
     "--cinematic",
@@ -164,6 +201,7 @@ def run(
     keep_clips: bool,
     overlays: bool,
     transitions: str,
+    suggest_cinematic: bool,
     cinematic: bool,
     cinematic_takes: int,
     cinematic_path: str | None,
@@ -171,6 +209,8 @@ def run(
     timing_offset: float,
 ) -> None:
     """Parse DEMO, detect highlights, record them in-game and produce an MP4."""
+    if suggest_cinematic and cinematic:
+        raise click.UsageError("--suggest-cinematic is for previewing; use it without --cinematic")
     config = load_config()
     for section, name, value in (
         (config.selection, "top", top),
@@ -211,30 +251,21 @@ def run(
 
     from highlights.spatial import build_spatial_metadata
 
+    suggestions = None
     spatial = None
     if not cinematic:
         spatial = build_spatial_metadata(parsed, sequences)
-    if cinematic:
-        from highlights.places import load_places
-        from highlights.recording.campaths import load_campaths, resolve_campaths_dir
-        from highlights.recording.cinematic import add_cinematic_sequences
-        from highlights.recording.path_routes import load_labels
+    if suggest_cinematic:
+        from highlights.recording.suggest import suggest_cinematics
 
-        campaths_dir = resolve_campaths_dir(config)
-        campaths = load_campaths(campaths_dir, parsed.map_name)
-        if not campaths:
-            raise click.ClickException(
-                f"No cam paths for {parsed.map_name} in {campaths_dir} — "
-                "put them in a folder named after the map (see README, 'Cinematic cam paths')"
-            )
-        info(f"Cinematic: {len(campaths)} cam path(s) found for {parsed.map_name}")
-        place_map = load_places(parsed.map_name)
-        if place_map is None:
-            warn(
-                f"No place map for {parsed.map_name} — run `highlights places build DEMO...` "
-                "to see where cam paths go"
-            )
-        labels = load_labels(campaths_dir, parsed.map_name)
+        campaths, place_map, labels = _load_cinematic_inputs(config, parsed.map_name)
+        suggestions = suggest_cinematics(
+            sequences, campaths, spatial, parsed.tickrate, place_map=place_map, labels=labels
+        )
+    if cinematic:
+        from highlights.recording.cinematic import add_cinematic_sequences
+
+        campaths, place_map, labels = _load_cinematic_inputs(config, parsed.map_name)
         forced = None
         if cinematic_path:
             forced = next((p for p in campaths if p.name.lower() == cinematic_path.lower()), None)
@@ -256,8 +287,10 @@ def run(
         )
 
     print_sequences_table(parsed, sequences, spatial)
+    if suggestions is not None:
+        print_suggestions_table(parsed, sequences, suggestions)
     report_path = output.with_suffix(".json")
-    write_report(report_path, parsed, sequences, spatial_by_sequence=spatial)
+    write_report(report_path, parsed, sequences, spatial_by_sequence=spatial, suggestions=suggestions)
     info(f"Report written to {report_path}")
 
     if json_only:

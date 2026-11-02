@@ -167,6 +167,12 @@ purchased observer pack) and keep them out of git.
    name without extension).
 6. `highlights doctor` shows how many cam paths were found.
 
+Before recording anything, `highlights match.dem --suggest-cinematic --json-only`
+previews per clip whether a cinematic is worth it, the best path, how long it
+sees the player, its route, and alternatives. Then pick one with
+`--cinematic --cinematic-path NAME`. The suggestions are also in the JSON
+report under `cinematic_suggestion`.
+
 Splice limits: visibility is a view-cone test against the player's position
 and does not know about walls, so a cut can land on a camera that is pointed
 at the player but blocked by geometry; review `splice_segments` before a long

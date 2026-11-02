@@ -12,6 +12,7 @@ import json
 from bisect import bisect_right
 from pathlib import Path
 
+from rich.markup import escape
 from rich.table import Table
 
 from highlights.demo.parser import DemoData
@@ -142,6 +143,7 @@ def write_report(
     capture_fps: int = 60,
     target_fps: int = 60,
     spatial_by_sequence: dict[int, dict] | None = None,
+    suggestions: dict[int, dict] | None = None,
 ) -> None:
     """Write the existing report schema plus per-sequence editing timelines.
 
@@ -154,6 +156,60 @@ def write_report(
 
     if spatial_by_sequence is None:
         spatial_by_sequence = build_spatial_metadata(demo, sequences)
+
+    def sequence_dict(s: Sequence) -> dict:
+        return {
+            "number": s.number,
+            "label": s.label,
+            "score": s.score,
+            "round": s.round_index + 1,
+            "start_tick": s.start_tick,
+            "end_tick": s.end_tick,
+            "duration_seconds": round(s.duration_seconds(demo.tickrate), 1),
+            "clip_filename": f"clip_{s.number:02d}.mp4",
+            "cinematic": (
+                {
+                    "campath": s.campath.name,
+                    "of_sequence": s.cinematic_of,
+                    "candidates": s.cinematic_candidates,
+                    "splice_segments": (
+                        [{"start_seconds": a, "end_seconds": b} for a, b in s.splice_segments]
+                        if s.splice_segments is not None
+                        else None
+                    ),
+                }
+                if s.campath is not None
+                else None
+            ),
+            "cameras": [
+                {"tick": c.tick, "steamid": c.steamid, "name": demo.player_names.get(c.steamid, "")}
+                for c in s.cameras
+            ],
+            "moments": [
+                {
+                    "player": m.name,
+                    "steamid": m.steamid,
+                    "kills": m.kill_count,
+                    "kill_ticks": [kill.tick for kill in m.kills],
+                    "description": m.describe(),
+                    "score": m.score,
+                    "clutch": (
+                        {
+                            "opponents": m.clutch.opponents,
+                            "won": m.clutch.won,
+                            "kills": m.clutch.kills,
+                            "start_tick": m.clutch.start_tick,
+                            "end_tick": m.clutch.end_tick,
+                        }
+                        if m.clutch
+                        else None
+                    ),
+                }
+                for m in s.moments
+            ],
+            "events": _timeline_events(demo, s, capture_fps, target_fps, spatial_by_sequence.get(s.number)),
+            "spatial": spatial_by_sequence.get(s.number, {"status": "unavailable"}),
+        }
 
     data = {
         "schema_version": 3,
@@ -173,62 +229,13 @@ def write_report(
                 "target_output_fps is an editing goal, not the FPS currently exported by this command."
             ),
         },
-        "sequences": [
-            {
-                "number": s.number,
-                "label": s.label,
-                "score": s.score,
-                "round": s.round_index + 1,
-                "start_tick": s.start_tick,
-                "end_tick": s.end_tick,
-                "duration_seconds": round(s.duration_seconds(demo.tickrate), 1),
-                "clip_filename": f"clip_{s.number:02d}.mp4",
-                "cinematic": (
-                    {
-                        "campath": s.campath.name,
-                        "of_sequence": s.cinematic_of,
-                        "candidates": s.cinematic_candidates,
-                        "splice_segments": (
-                            [{"start_seconds": a, "end_seconds": b} for a, b in s.splice_segments]
-                            if s.splice_segments is not None
-                            else None
-                        ),
-                    }
-                    if s.campath is not None
-                    else None
-                ),
-                "cameras": [
-                    {"tick": c.tick, "steamid": c.steamid, "name": demo.player_names.get(c.steamid, "")}
-                    for c in s.cameras
-                ],
-                "moments": [
-                    {
-                        "player": m.name,
-                        "steamid": m.steamid,
-                        "kills": m.kill_count,
-                        "kill_ticks": [kill.tick for kill in m.kills],
-                        "description": m.describe(),
-                        "score": m.score,
-                        "clutch": (
-                            {
-                                "opponents": m.clutch.opponents,
-                                "won": m.clutch.won,
-                                "kills": m.clutch.kills,
-                                "start_tick": m.clutch.start_tick,
-                                "end_tick": m.clutch.end_tick,
-                            }
-                            if m.clutch
-                            else None
-                        ),
-                    }
-                    for m in s.moments
-                ],
-                "events": _timeline_events(demo, s, capture_fps, target_fps, spatial_by_sequence.get(s.number)),
-                "spatial": spatial_by_sequence.get(s.number, {"status": "unavailable"}),
-            }
-            for s in sequences
-        ],
+        "sequences": [],
     }
+    for s in sequences:
+        record = sequence_dict(s)
+        if suggestions is not None:
+            record["cinematic_suggestion"] = suggestions.get(s.number)
+        data["sequences"].append(record)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
@@ -324,6 +331,52 @@ def print_sequences_table(
             f"{s.start_tick}-{s.end_tick}",
         ]
         table.add_row(*row)
+    console.print(table)
+
+
+def print_suggestions_table(demo: DemoData, sequences: list[Sequence], suggestions: dict[int, dict]) -> None:
+    """Per clip: whether a cinematic is worth it and which cam path would work."""
+    table = Table(title=f"Cinematic suggestions — {demo.map_name}")
+    table.add_column("#", justify="right")
+    table.add_column("Highlight")
+    table.add_column("Fit")
+    table.add_column("Cam path")
+    table.add_column("Path route")
+    table.add_column("Why")
+    styles = {"good": "green", "possible": "yellow", "none": "dim"}
+    for s in sequences:
+        suggestion = suggestions.get(s.number)
+        if suggestion is None:
+            continue
+        best = suggestion.get("best")
+        if best:
+            lines = [escape(best["name"]) + (f' "{escape(best["label"])}"' if best.get("label") else "")]
+            cover = best.get("coverage_seconds")
+            lines.append(f"sees player {cover:.1f}s" if cover is not None else "sees player -")
+            alternatives = suggestion.get("alternatives") or []
+            if alternatives:
+                names = ", ".join(
+                    escape(a["name"]) + (f" {a['coverage_seconds']:.1f}s" if a.get("coverage_seconds") is not None else "")
+                    for a in alternatives
+                )
+                lines.append(f"also: {names}")
+            path_cell = "\n".join(lines)
+            route_cell = escape(" > ".join(best.get("route") or [])) or "-"
+        else:
+            path_cell = "-"
+            route_cell = "-"
+        verdict = suggestion.get("verdict", "")
+        why_cell = escape("; ".join(suggestion.get("why") or []))
+        style = styles.get(verdict)
+        fit_cell = f"[{style}]{escape(verdict)}[/]" if style else escape(verdict)
+        table.add_row(
+            str(s.number),
+            escape(s.label),
+            fit_cell,
+            path_cell,
+            route_cell,
+            why_cell,
+        )
     console.print(table)
 
 

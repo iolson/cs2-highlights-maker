@@ -54,6 +54,12 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   and `load_labels` (optional `campaths/<Map>/labels.toml`, file name → friendly name); both show
   in the `--cinematic` candidate lists and in `cinematic.candidates` (`route`, `label`). Log text
   containing `[...]` must go through `rich.markup.escape` (info() renders markup).
+- `recording/suggest.py` — `suggest_cinematics(...)`: per clip verdict (good/possible/none), why,
+  best cam path + alternatives (coverage seconds, route, route overlap). Runs the splice matching
+  quietly (`add_cinematic_sequences(..., quiet=True)`) so it can never disagree with what
+  `--cinematic-mode splice` would record. CLI: `--suggest-cinematic` (preview table + report key
+  `cinematic_suggestion`; not combinable with `--cinematic`). Results are keyed by the INPUT
+  sequence numbers (the cinematic pass renumbers its output).
 - `routes.py` — `clip_route(sequence, spatial)`: the places the POV player moves through
   (from the place hints already sampled in spatial metadata) and where each selected kill
   landed; stored as `spatial.route` and shown as the "Where" column of the highlights table.
