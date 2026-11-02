@@ -19,6 +19,7 @@ from demoparser2 import DemoParser
 
 from highlights.demo.parser import DemoData
 from highlights.models import Sequence
+from highlights.routes import clip_route
 
 
 SAMPLES_PER_SECOND = 4
@@ -343,5 +344,8 @@ def build_spatial_metadata(demo: DemoData, sequences: list[Sequence]) -> dict[in
             "cam_path_matches": [],
             "cam_path_note": "Import Duality Observer camera files separately to compare their map, XYZ anchors, elevation and orientation.",
         }
+        spatial_by_sequence[sequence.number]["route"] = clip_route(
+            sequence, spatial_by_sequence[sequence.number]
+        )
 
     return spatial_by_sequence

@@ -50,6 +50,9 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   built by `highlights places build DEMO...` (accumulates across runs), `places list` shows it.
   `route_of(points, place_map)` turns positions into a compressed place sequence
   (e.g. `Silo > Outside > Mini > BombsiteA`) — used to describe clips and cam paths.
+- `routes.py` — `clip_route(sequence, spatial)`: the places the POV player moves through
+  (from the place hints already sampled in spatial metadata) and where each selected kill
+  landed; stored as `spatial.route` and shown as the "Where" column of the highlights table.
 - `video/` — wav→aac mux, optional drawtext overlay, concat demuxer
   (stream-copy default) or xfade chain.
 

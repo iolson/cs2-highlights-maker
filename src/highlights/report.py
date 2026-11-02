@@ -293,23 +293,37 @@ def finalize_report(
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
-def print_sequences_table(demo: DemoData, sequences: list[Sequence]) -> None:
+def print_sequences_table(
+    demo: DemoData,
+    sequences: list[Sequence],
+    spatial_by_sequence: dict[int, dict] | None = None,
+) -> None:
     table = Table(title=f"Highlights — {demo.map_name} ({len(demo.rounds)} rounds)")
     table.add_column("#", justify="right")
     table.add_column("Round", justify="right")
     table.add_column("Highlight")
+    show_route = spatial_by_sequence is not None and any(
+        spatial_by_sequence.get(s.number, {}).get("route", {}).get("text") for s in sequences
+    )
+    if show_route:
+        table.add_column("Where")
     table.add_column("Score")
     table.add_column("Length")
     table.add_column("Ticks", justify="right")
     for s in sequences:
-        table.add_row(
+        row = [
             str(s.number),
             str(s.round_index + 1),
             s.label,
+        ]
+        if show_route:
+            row.append(spatial_by_sequence.get(s.number, {}).get("route", {}).get("text", ""))
+        row += [
             f"{s.score:.1f}",
             f"{s.duration_seconds(demo.tickrate):.0f}s",
             f"{s.start_tick}-{s.end_tick}",
-        )
+        ]
+        table.add_row(*row)
     console.print(table)
 
 

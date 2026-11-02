@@ -209,11 +209,14 @@ def run(
             "No highlights matched the criteria — try --min-kills 1 or check the demo"
         )
 
+    from highlights.spatial import build_spatial_metadata
+
     spatial = None
+    if not cinematic:
+        spatial = build_spatial_metadata(parsed, sequences)
     if cinematic:
         from highlights.recording.campaths import load_campaths, resolve_campaths_dir
         from highlights.recording.cinematic import add_cinematic_sequences
-        from highlights.spatial import build_spatial_metadata
 
         campaths_dir = resolve_campaths_dir(config)
         campaths = load_campaths(campaths_dir, parsed.map_name)
@@ -241,7 +244,7 @@ def run(
             forced=forced,
         )
 
-    print_sequences_table(parsed, sequences)
+    print_sequences_table(parsed, sequences, spatial)
     report_path = output.with_suffix(".json")
     write_report(report_path, parsed, sequences, spatial_by_sequence=spatial)
     info(f"Report written to {report_path}")

@@ -39,6 +39,11 @@ Run `build` once per map on a few demos (use `--every SECONDS` to sample more
 or less often); results accumulate in `~/.cs2-highlights/places/<map>.json`
 and label where each play happened without parsing the demo again.
 
+The highlights table has a "Where" column with each clip's route (the places
+the POV player moved through), and every sequence in the JSON report carries
+`spatial.route` — `{places, text, kills}` — listing that route and where each
+featured kill happened.
+
 ## How it works
 
 ```
