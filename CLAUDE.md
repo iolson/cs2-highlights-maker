@@ -93,6 +93,11 @@ Set per clip in `build_actions_file`; they deviate from stock CSDM on purpose.
 - **Kill-feed lifetime:** `max(60, clip seconds + 10)` with `lifetimeMod 1.0`,
   so POV kills persist to the end of the clip instead of fading after 5 s.
   `recording.death_notices_duration` is therefore no longer used here.
+- **Name overrides:** `recording.player_names` (SteamID64 → name, TOML table
+  `[recording.player_names]`) emits `mirv_replace_name byXuid add x<id> "<name>"`
+  at each sequence's setup tick. Empty by default = no commands. HLAE only renames
+  "some parts of the HUD"; whether the kill feed is among them is NOT yet
+  validated in-game.
 - Every sequence must have at least one camera (raises otherwise): the first
   camera's player seeds the kill-feed filter.
 

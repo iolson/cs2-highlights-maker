@@ -82,6 +82,11 @@ crf = 23
 lead_in_seconds = 4.0
 lead_out_seconds = 3.0
 
+# Optional: show custom names (SteamID64 = "name") via HLAE's mirv_replace_name.
+# HLAE only renames "some parts of the HUD"; check the kill feed in-game.
+[recording.player_names]
+76561198000000000 = "Display Name"
+
 [selection]
 top = 10
 min_kills = 2

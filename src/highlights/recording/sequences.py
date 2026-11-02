@@ -77,6 +77,22 @@ def to_unix_path(path: Path | str) -> str:
     return str(path).replace("\\", "/")
 
 
+def name_override_commands(player_names: dict[str, str]) -> list[str]:
+    """`mirv_replace_name` commands for a SteamID64 -> display name map.
+
+    XUID equals the SteamID64 in CS2 and, unlike the user id, is stable across
+    demos. Entries with a non-numeric id or a name that is empty after cleaning
+    are skipped; quotes and control characters would break the console command.
+    """
+    commands = []
+    for steamid, name in player_names.items():
+        steamid = str(steamid).strip()
+        clean = "".join(c for c in str(name) if c.isprintable() and c not in '"\\;').strip()
+        if steamid.isdigit() and clean:
+            commands.append(f'mirv_replace_name byXuid add x{steamid} "{clean}"')
+    return commands
+
+
 def _apply_pov_killfeed_filter(
     actions: ActionsFile, tick: int, steamid: str
 ) -> None:
@@ -117,6 +133,7 @@ def build_actions_file(
     # Only touch campath state when a cinematic sequence exists, so plain POV
     # runs emit exactly the commands they always did.
     uses_campaths = any(s.campath for s in sequences)
+    name_overrides = name_override_commands(recording.player_names)
 
     for i, sequence in enumerate(sequences):
         if not sequence.cameras:
@@ -150,6 +167,8 @@ def build_actions_file(
         actions.add_exec(setup_tick, "mirv_deathmsg lifetimeMod 1.0")
         # Reset stale kills from the preceding sequence.
         actions.add_exec(setup_tick, "mirv_deathmsg clear")
+        for command in name_overrides:
+            actions.add_exec(setup_tick, command)
         actions.add_exec(setup_tick, "spec_show_xray 0")
         actions.add_exec(setup_tick, "mp_display_kill_assists 1")
         if uses_campaths:
