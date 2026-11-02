@@ -26,6 +26,19 @@ highlights top *.dem --players Alice --players Bob
 
 This only prints a ranked table (no JSON report, no recording).
 
+### Place names
+
+Teach the tool where plays happen on each map:
+
+```
+highlights places build a.dem b.dem      # samples alive players' place names
+highlights places list                   # show saved maps and cell counts
+```
+
+Run `build` once per map on a few demos (use `--every SECONDS` to sample more
+or less often); results accumulate in `~/.cs2-highlights/places/<map>.json`
+and label where each play happened without parsing the demo again.
+
 ## How it works
 
 ```

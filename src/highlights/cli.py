@@ -21,7 +21,9 @@ from highlights.config import Config, load_config
 from highlights.demo.parser import DemoData, ensure_dem_file, parse_demo
 from highlights.demo.players import PlayerNotFound, resolve_players
 from highlights.models import CameraAction, Moment, Sequence
+from highlights.places import PlaceMap, load_places, places_dir, save_places
 from highlights.report import finalize_report, print_sequences_table, print_top_table, write_report
+from highlights.spatial import sample_places
 from highlights.util.log import console, error, info, warn
 
 
@@ -387,6 +389,68 @@ def top(
         )
 
     print_top_table(rows)
+
+
+@main.group(name="places")
+def places_group() -> None:
+    """Build and inspect the per-map place lookup used to describe where plays happen."""
+
+
+@places_group.command()
+@click.argument("demos", nargs=-1, required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--every", type=float, default=1.0, help="Sample every N seconds of demo time")
+def build(demos: tuple[Path, ...], every: float) -> None:
+    """Sample place names from DEMOs and accumulate them into the per-map lookup."""
+    if every <= 0:
+        raise click.BadParameter("must be > 0", param_hint="--every")
+
+    config = load_config()
+    maps: dict[str, PlaceMap] = {}
+    for demo_path in demos:
+        work_dir = _resolve_work_dir(config, demo_path)
+        with console.status(f"Parsing {demo_path.name}..."):
+            parsed_path = ensure_dem_file(demo_path, work_dir)
+            parsed = parse_demo(parsed_path)
+        step = max(1, round(parsed.tickrate * every))
+        ticks = list(range(1, parsed.last_tick + 1, step))
+        samples = sample_places(parsed_path, ticks)
+        info(f"[bold]{demo_path.name}[/bold] ({parsed.map_name}): {len(samples)} place samples")
+        if not samples:
+            warn(f"{demo_path.name}: no place samples found; skipping")
+            continue
+        place_map = maps.get(parsed.map_name)
+        if place_map is None:
+            place_map = maps[parsed.map_name] = load_places(parsed.map_name) or PlaceMap(parsed.map_name)
+        place_map.add_many(samples)
+
+    for place_map in maps.values():
+        path = save_places(place_map)
+        info(f"Saved [bold]{place_map.map_name}[/bold]: {len(place_map)} cells -> {path}")
+
+
+@places_group.command(name="list")
+def list_places() -> None:
+    """Show the per-map place lookups saved on this machine."""
+    from rich.table import Table
+
+    directory = places_dir()
+    rows = []
+    for path in sorted(directory.glob("*.json")) if directory.is_dir() else []:
+        place_map = load_places(path.stem)
+        if place_map is None:
+            continue
+        rows.append((place_map.map_name, len(place_map)))
+
+    if not rows:
+        info("No place maps yet — run [bold]highlights places build DEMO...[/bold] to create one.")
+        return
+
+    table = Table(title="Saved place maps")
+    table.add_column("Map")
+    table.add_column("Cells", justify="right")
+    for map_name, cells in rows:
+        table.add_row(map_name, str(cells))
+    console.print(table)
 
 
 @main.command()

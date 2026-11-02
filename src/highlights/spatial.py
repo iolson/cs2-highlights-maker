@@ -150,6 +150,29 @@ def _query_positions(
     return positions, properties, note
 
 
+def sample_places(demo_path: Path, ticks: list[int]) -> list[tuple[float, float, float, str]]:
+    """Sample (x, y, z, place) of alive players at the given ticks for the place lookup."""
+    if not ticks:
+        return []
+    parser = DemoParser(str(demo_path))
+    frame = parser.parse_ticks(["X", "Y", "Z", "last_place_name", "is_alive"], ticks=ticks)
+    if frame is None or frame.empty:
+        return []
+    samples: list[tuple[float, float, float, str]] = []
+    for row in frame.to_dict(orient="records"):
+        x, y, z = (_float(row.get(key)) for key in ("X", "Y", "Z"))
+        if x is None or y is None or z is None:
+            continue
+        place = row.get("last_place_name")
+        if place is None or pd.isna(place) or not str(place).strip():
+            continue
+        is_alive = row.get("is_alive")
+        if is_alive is not None and not pd.isna(is_alive) and not bool(is_alive):
+            continue
+        samples.append((x, y, z, str(place).strip()))
+    return samples
+
+
 def _build_zones(engagements: list[dict]) -> list[dict]:
     """Cluster featured kills in timeline order. Do not conflate map floors."""
     groups: list[list[dict]] = []

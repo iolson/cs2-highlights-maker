@@ -45,6 +45,11 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   `beat_targets` list (POV kills only) from ffprobe clip durations, crossfade
   overlap and `--timing-offset`. Times are nominal until calibrated against a
   real clip (`editing.timing_status`).
+- `places.py` — per-map position→place-name lookup (`PlaceMap`, 64×64×96 unit cells, nearest
+  populated cell wins, height weighted ×2) saved in `~/.cs2-highlights/places/<map>.json`;
+  built by `highlights places build DEMO...` (accumulates across runs), `places list` shows it.
+  `route_of(points, place_map)` turns positions into a compressed place sequence
+  (e.g. `Silo > Outside > Mini > BombsiteA`) — used to describe clips and cam paths.
 - `video/` — wav→aac mux, optional drawtext overlay, concat demuxer
   (stream-copy default) or xfade chain.
 
