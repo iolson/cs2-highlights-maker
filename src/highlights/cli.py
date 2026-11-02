@@ -215,8 +215,10 @@ def run(
     if not cinematic:
         spatial = build_spatial_metadata(parsed, sequences)
     if cinematic:
+        from highlights.places import load_places
         from highlights.recording.campaths import load_campaths, resolve_campaths_dir
         from highlights.recording.cinematic import add_cinematic_sequences
+        from highlights.recording.path_routes import load_labels
 
         campaths_dir = resolve_campaths_dir(config)
         campaths = load_campaths(campaths_dir, parsed.map_name)
@@ -226,6 +228,13 @@ def run(
                 "put them in a folder named after the map (see README, 'Cinematic cam paths')"
             )
         info(f"Cinematic: {len(campaths)} cam path(s) found for {parsed.map_name}")
+        place_map = load_places(parsed.map_name)
+        if place_map is None:
+            warn(
+                f"No place map for {parsed.map_name} — run `highlights places build DEMO...` "
+                "to see where cam paths go"
+            )
+        labels = load_labels(campaths_dir, parsed.map_name)
         forced = None
         if cinematic_path:
             forced = next((p for p in campaths if p.name.lower() == cinematic_path.lower()), None)
@@ -242,6 +251,8 @@ def run(
             cinematic_takes,
             splice=cinematic_mode == "splice",
             forced=forced,
+            place_map=place_map,
+            labels=labels,
         )
 
     print_sequences_table(parsed, sequences, spatial)

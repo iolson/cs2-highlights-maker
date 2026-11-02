@@ -5,8 +5,12 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import replace
 
+from rich.markup import escape
+
 from highlights.models import Sequence
+from highlights.places import PlaceMap
 from highlights.recording.campaths import CamPath, path_distance, rank_campaths
+from highlights.recording.path_routes import path_route
 from highlights.recording.splice_plan import Point, Trajectory, coverage, plan_splice, position_at
 from highlights.util.log import info, warn
 
@@ -60,7 +64,9 @@ def _describe(candidates: list[dict]) -> str:
     parts = []
     for c in candidates:
         cover = "" if c["coverage_seconds"] is None else f", sees player {c['coverage_seconds']:.1f}s"
-        parts.append(f"{c['name']} ({c['distance']:.0f}u{cover})")
+        label = f' "{c["label"]}"' if c.get("label") else ""
+        route = f" [{' > '.join(c['route'])}]" if c.get("route") else ""
+        parts.append(f"{c['name']}{label} ({c['distance']:.0f}u{cover}){route}")
     return ", ".join(parts)
 
 
@@ -72,6 +78,8 @@ def add_cinematic_sequences(
     takes: int = 1,
     splice: bool = False,
     forced: CamPath | None = None,
+    place_map: PlaceMap | None = None,
+    labels: dict[str, str] | None = None,
 ) -> tuple[list[Sequence], dict[int, dict]]:
     """Follow each POV sequence with cinematic re-recordings of the same ticks.
 
@@ -87,6 +95,7 @@ def add_cinematic_sequences(
     """
     result: list[Sequence] = []
     spatial: dict[int, dict] = {}
+    routes: dict[str, list[str]] = {}
     if splice and takes > 1:
         info("--cinematic-takes is ignored with --cinematic-mode splice (one cinematic per play)")
 
@@ -106,13 +115,25 @@ def add_cinematic_sequences(
             warn(f"{sequence.label}: no spatial data to match cam paths, no cinematic take")
             continue
         distance = {path.name: path_distance(path, targets) for path in ranked}
+        play_route = (source or {}).get("route", {}).get("text")
+        route_note = f" [route: {play_route}]" if play_route else ""
 
         def candidate(path: CamPath, cover: float | None) -> dict:
-            return {"name": path.name, "distance": round(distance[path.name], 1), "coverage_seconds": cover}
+            route = routes.get(path.name)
+            if route is None:
+                route = path_route(path, place_map) if place_map else []
+                routes[path.name] = route
+            return {
+                "name": path.name,
+                "distance": round(distance[path.name], 1),
+                "coverage_seconds": cover,
+                "route": route,
+                "label": (labels or {}).get(path.name.lower()),
+            }
 
         if not splice:
             shown = [candidate(path, None) for path in ranked[: max(takes, CANDIDATES_SHOWN)]]
-            info(f"{sequence.label}: cinematic candidates — {_describe(shown)}")
+            info(escape(f"{sequence.label}{route_note}: cinematic candidates — {_describe(shown)}"))
             for path in ranked[:takes]:
                 if path.duration < sequence.duration_seconds(tickrate):
                     warn(
@@ -146,7 +167,7 @@ def add_cinematic_sequences(
             )
             continue
         path, segments = chosen
-        info(f"{sequence.label}: cinematic {path.name} — candidates: {_describe(shown)}")
+        info(escape(f"{sequence.label}{route_note}: cinematic {path.name} — candidates: {_describe(shown)}"))
         append(
             sequence,
             sequence.number,

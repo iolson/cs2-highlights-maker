@@ -50,6 +50,10 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   built by `highlights places build DEMO...` (accumulates across runs), `places list` shows it.
   `route_of(points, place_map)` turns positions into a compressed place sequence
   (e.g. `Silo > Outside > Mini > BombsiteA`) — used to describe clips and cam paths.
+- `recording/path_routes.py` — `path_route(path, place_map)` (places a cam path passes through)
+  and `load_labels` (optional `campaths/<Map>/labels.toml`, file name → friendly name); both show
+  in the `--cinematic` candidate lists and in `cinematic.candidates` (`route`, `label`). Log text
+  containing `[...]` must go through `rich.markup.escape` (info() renders markup).
 - `routes.py` — `clip_route(sequence, spatial)`: the places the POV player moves through
   (from the place hints already sampled in spatial metadata) and where each selected kill
   landed; stored as `spatial.route` and shown as the "Where" column of the highlights table.

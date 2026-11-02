@@ -112,15 +112,18 @@ def pose_at(path: CamPath, t: float) -> tuple[tuple[float, float, float], tuple[
     return keys[-1].pos, keys[-1].forward, keys[-1].fov
 
 
-def load_campaths(base: Path, map_name: str) -> list[CamPath]:
-    """Cam paths for a map, from the subfolder named like it ("Nuke" or "de_nuke")."""
+def map_folders(base: Path, map_name: str) -> list[Path]:
+    """Subfolders of `base` named like the map ("Nuke" or "de_nuke"), sorted."""
     if not base.is_dir():
         return []
     wanted = {map_name.lower(), map_name.lower().removeprefix("de_")}
+    return [folder for folder in sorted(base.iterdir()) if folder.is_dir() and folder.name.lower() in wanted]
+
+
+def load_campaths(base: Path, map_name: str) -> list[CamPath]:
+    """Cam paths for a map, from the subfolder named like it ("Nuke" or "de_nuke")."""
     paths: list[CamPath] = []
-    for folder in sorted(base.iterdir()):
-        if not folder.is_dir() or folder.name.lower() not in wanted:
-            continue
+    for folder in map_folders(base, map_name):
         for file in sorted(folder.iterdir()):
             if file.suffix.lower() in CAMPATH_SUFFIXES and (parsed := parse_campath(file)):
                 paths.append(parsed)
