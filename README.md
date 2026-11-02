@@ -196,17 +196,19 @@ player and records it as an extra take, which is cut into the POV clip like a sp
 cinematic (clip length, kill times and audio are unchanged).
 
 Styles: `face`, `profile`, `gun`, `tps` (over the shoulder), `heli` (high, looking down).
-Pass one, a comma-separated list, or `random` (a style is picked per cut, the same way on
-every run of the same demo).
+Pass one, a comma-separated list, or `random` (picked per clip, the same way on every run
+of the same demo). `face` and `gun` are wide shots 1-2 m from the player.
 
 - `--intro-cam STYLE` opens every clip (up to 3.5 s, shorter when a kill comes early) on
-  the style's shot and eases into the exact first-person eye pose, so the cut to the POV
-  has no jump.
-- `--downtime-cam STYLE` uses the gaps between kills (same kill padding as splice mode,
-  at most 4 s per cut, 1 s of plain POV after the opener, split at POV switches): the
-  camera eases out of the eye pose, holds the shot and eases back. Ranges a
-  `--cinematic --cinematic-mode splice` cam path already covers are left to that path,
-  so the cam path wins and generated cams only fill what is left.
+  the style's shot, then spirals round to just behind the player and pushes into the exact
+  first-person eye pose, so the cut to the POV has no jump.
+- `--downtime-cam STYLE` fills the long gaps between kills with one continuous pass of the
+  style's shot (hard cut in and out, no swooping back to the POV). Only gaps of at least
+  2.5 s count, each pass is up to 12 s, and at most the 2 longest gaps per clip are used, so
+  a clip is not chopped up. Ranges a `--cinematic --cinematic-mode splice` cam path already
+  covers are left to that path.
+- A list or `random` picks one style per kind per clip (not per cut), so a clip never mixes
+  cam styles.
 
 Both can be combined with each other and with `--cinematic`; the JSON report lists the cuts
 under `cinematic.generated_cams`. They are not checked against map geometry: a camera can

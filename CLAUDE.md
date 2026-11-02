@@ -64,8 +64,11 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   paths (face/profile/gun/tps/heli) computed from dense POV tracks
   (`spatial.sample_pov_tracks`, 16 Hz, yaw/pitch) as an extra cinematic take per play
   (`Sequence.dynamic_cam`, `splice_segments`, report `cinematic.generated_cams`). Intro
-  segments end exactly on the first-person eye pose (z + `EYE_HEIGHT` 64; crouching is not
-  modelled) so the hand-off is seamless; down-time segments start and end on it. Paths are
+  segments hold the style `Shot`, spiral round to just behind the head (`SWOOP_END`) and push
+  into the exact first-person eye pose (z + `EYE_HEIGHT` 64; crouching is not modelled) so the
+  hand-off is seamless; down-time segments are one continuous hard-cut pass of the shot
+  (>= `DOWNTIME_MIN` 2.5 s, <= `DOWNTIME_MAX` 12 s, the `MAX_DOWNTIME_PASSES` 2 longest per
+  clip). One style per kind per clip. Paths are
   rebased to the first recorded frame, so a path whose first segment starts late holds that
   first pose from t=0. `plan_segments` reuses the splice kill padding, avoids ranges a real
   splice take covers, and splits at camera switches. `cli._splice_cinematics` overlays

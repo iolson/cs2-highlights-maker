@@ -78,16 +78,12 @@ def add_dynamic_sequences(
             "face" if downtime else None,
             taken,
         )
-        segments = [
-            replace(
-                seg,
-                style=pick_style(
-                    (intro if seg.kind == "intro" else downtime) or [],
-                    sequence.start_tick * 31 + index,
-                ),
-            )
-            for index, seg in enumerate(base)
-        ]
+        # One style per kind per clip, so a clip never mixes cam styles.
+        styles = {
+            "intro": pick_style(intro, sequence.start_tick) if intro else "",
+            "downtime": pick_style(downtime, sequence.start_tick + 1) if downtime else "",
+        }
+        segments = [replace(seg, style=styles[seg.kind]) for seg in base]
         if segments:
             plans[sequence.number] = segments
 

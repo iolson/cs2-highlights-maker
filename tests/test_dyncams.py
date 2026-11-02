@@ -69,15 +69,27 @@ def test_unknown_style_is_rejected():
 
 
 @pytest.mark.parametrize("style", STYLES)
-def test_intro_ends_exactly_on_the_eye_and_downtime_on_both_ends(style):
+def test_intro_ends_exactly_on_the_eye(style):
     intro = Segment(0.0, 3.0, "intro", style)
     end = segment_pose(intro, EYE, 3.0)
     assert close(end.pos, EYE.pos) and end.yaw == pytest.approx(EYE.yaw) and end.fov == pytest.approx(EYE.fov)
     assert not close(segment_pose(intro, EYE, 0.0).pos, EYE.pos, 1.0)
-    down = Segment(2.0, 5.0, "downtime", style)
-    for t in (2.0, 5.0):
-        assert close(segment_pose(down, EYE, t).pos, EYE.pos)
-    assert not close(segment_pose(down, EYE, 3.5).pos, EYE.pos, 1.0)
+
+
+@pytest.mark.parametrize("style", ["face", "gun", "profile"])
+def test_intro_swoop_keeps_clear_of_the_players_head_until_the_last_push(style):
+    intro = Segment(0.0, 3.5, "intro", style)
+    distances = [math.dist(segment_pose(intro, EYE, 3.5 * i / 70).pos, EYE.pos) for i in range(0, 61)]
+    assert min(distances) > 25  # up to 87% of the way: never through the head
+
+
+@pytest.mark.parametrize("style", STYLES)
+def test_downtime_is_one_continuous_pass_that_never_swoops_to_the_eye(style):
+    down = Segment(2.0, 8.0, "downtime", style)
+    poses = [segment_pose(down, EYE, 2.0 + 6.0 * i / 20) for i in range(21)]
+    assert all(math.dist(p.pos, EYE.pos) > 40 for p in poses)
+    steps = [math.dist(a.pos, b.pos) for a, b in zip(poses, poses[1:])]
+    assert max(steps) < 60  # smooth drift, no jumps between samples
 
 
 def test_plan_opener_stops_before_the_first_kill():
@@ -92,7 +104,7 @@ def test_plan_downtime_uses_gaps_caps_length_and_leaves_a_pov_gap():
     assert [s.kind for s in segs] == ["intro", "downtime", "downtime"]  # opener, gap between kills, tail
     down = segs[1]
     assert down.start >= 3.0 + POV_GAP and down.start == pytest.approx(5.0)  # after the kill's padding
-    assert down.end - down.start <= DOWNTIME_MAX
+    assert down.end - down.start == pytest.approx(DOWNTIME_MAX)  # a full pass, capped
     assert all(s.end - s.start >= MIN_SEGMENT for s in segs)
     # never inside the POV padding around the kills
     assert all(not (s.start < 5.0 and s.end > 3.0) for s in segs if s.kind == "downtime")
@@ -146,3 +158,13 @@ def test_quaternions_stay_on_one_side_across_a_yaw_wrap(tmp_path):
 
     quats = [tuple(float(v) for v in m) for m in re.findall(r'qw="([-\d.]+)" qx="([-\d.]+)" qy="([-\d.]+)" qz="([-\d.]+)"', text)]
     assert sum(a * b for a, b in zip(*quats)) > 0
+
+
+def test_only_the_longest_passes_are_kept_and_short_gaps_are_skipped():
+    kills = [3.0, 6.5, 14.0, 18.5, 29.0]  # gaps: 0-2, 7.5-13, 15-17.5, 19.5-28
+    segs = plan_segments(32.0, kills, [], None, "heli")
+    assert len(segs) == 2  # MAX_DOWNTIME_PASSES
+    lengths = sorted(round(s.end - s.start, 1) for s in segs)
+    assert lengths == [5.5, 8.5]
+    short = plan_segments(10.0, [3.0, 8.0], [], None, "heli")  # gaps 0-2 (too short), 4-7, 9-10 (too short)
+    assert [(s.start, s.end) for s in short] == [(4.0, 7.0)]

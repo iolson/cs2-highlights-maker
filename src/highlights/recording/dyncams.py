@@ -29,9 +29,9 @@ POV_FOV = 90.0  # fov of the first-person view; assumed, not validated in-game
 KEY_STEP = 1 / 16  # seconds between generated keyframes
 OPENER_SECONDS = 3.5  # opener length (shortened to stay clear of the first kill)
 OPENER_HOLD = 0.55  # opener: fraction spent on the style shot before easing into the eye
-DOWNTIME_MAX = 4.0  # longest stretch of one down-time cut
-DOWNTIME_OUT = 0.3  # down time: fraction easing out of the eye ...
-DOWNTIME_BACK = 0.3  # ... and back into it
+DOWNTIME_MAX = 12.0  # longest stretch of one down-time pass
+DOWNTIME_MIN = 2.5  # shorter gaps are left to the POV: fewer, fuller passes
+MAX_DOWNTIME_PASSES = 2  # per clip (the longest gaps)
 POV_GAP = 1.0  # plain POV kept between the opener and the first down-time cut
 TRACK_SLACK = 0.25  # a track may end this much before the clip does; its last pose is held
 
@@ -103,29 +103,51 @@ def _around(head: Vec, yaw: float, angle: float, radius: float, height: float) -
     return head[0] + radius * cos(a), head[1] + radius * sin(a), head[2] + height
 
 
+@dataclass(frozen=True)
+class Shot:
+    """A camera placement relative to the player's head."""
+
+    angle: float  # degrees round from the facing direction (0 front, -90 their right, +-180 behind)
+    radius: float  # horizontal distance from the head
+    height: float  # camera height above the head
+    target_dz: float  # looks at the head plus this (ignored when aim == "player")
+    fov: float
+    aim: str = "look"  # "look" at the player, or "player": copy the player's own view angles
+
+
+# Wide shots, 1-2 m from the player (reference clips: front and rear follow shots at
+# roughly 150-200 units with a wide fov), drifting slowly while held.
+def shot(style: str, u: float) -> Shot:
+    if style == "face":  # steadicam in front of the player, head-height, face in frame
+        return Shot(_lerp(5.0, -20.0, u), _lerp(150.0, 125.0, u), 0.0, 0.0, 100.0)
+    if style == "profile":
+        return Shot(_lerp(-95.0, -80.0, u), _lerp(70.0, 58.0, u), 2.0, 0.0, 85.0)
+    if style == "gun":  # low front three-quarter on the weapon side, weapon and torso in frame
+        return Shot(_lerp(-30.0, -85.0, u), _lerp(150.0, 115.0, u), _lerp(-36.0, -20.0, u), -20.0, 100.0)
+    if style == "tps":  # over the shoulder, looking where the player looks
+        return Shot(_lerp(-150.0, -158.0, u), _lerp(78.0, 70.0, u), _lerp(16.0, 22.0, u), 0.0, 85.0, "player")
+    if style == "heli":
+        height = _lerp(760.0, 620.0, u)
+        return Shot(-180.0, height * 0.4, height, 0.0, 90.0)
+    raise ValueError(f"unknown cam style {style!r} (expected one of {', '.join(STYLES)})")
+
+
+# Where every opener swoops to before the last push into the eye: just behind the head.
+SWOOP_END = Shot(-180.0, 50.0, 6.0, 0.0, POV_FOV, "player")
+
+
+def _shot_pose(sh: Shot, eye: Pose, aim_weight: float = 0.0) -> Pose:
+    head = (eye.pos[0], eye.pos[1], eye.pos[2] - 4.0)
+    pos = _around(head, eye.yaw, sh.angle, sh.radius, sh.height)
+    yaw, pitch = look_at(pos, (head[0], head[1], head[2] + sh.target_dz))
+    w = 1.0 if sh.aim == "player" else aim_weight
+    return Pose(pos, _lerp_angle(yaw, eye.yaw, w) % 360.0, _lerp(pitch, eye.pitch, w), sh.fov)
+
+
 def style_pose(style: str, eye: Pose, u: float) -> Pose:
     """The style's shot for the player at `eye`; u in [0, 1] is how far through the
     shot we are (slow drift while it is held)."""
-    head = (eye.pos[0], eye.pos[1], eye.pos[2] - 4.0)
-    if style == "face":
-        pos = _around(head, eye.yaw, _lerp(8.0, -14.0, u), _lerp(58.0, 50.0, u), -4.0)
-        return Pose(pos, *look_at(pos, head), 85.0)
-    if style == "profile":
-        pos = _around(head, eye.yaw, _lerp(-95.0, -80.0, u), _lerp(70.0, 58.0, u), 2.0)
-        return Pose(pos, *look_at(pos, head), 85.0)
-    if style == "gun":
-        pos = _around(head, eye.yaw, _lerp(15.0, 160.0, u), _lerp(115.0, 70.0, u), _lerp(-32.0, -2.0, u))
-        chest = (head[0], head[1], head[2] - 18.0)
-        return Pose(pos, *look_at(pos, chest), 80.0)
-    if style == "tps":
-        pos = _around(head, eye.yaw, _lerp(-150.0, -158.0, u), _lerp(78.0, 70.0, u), _lerp(16.0, 22.0, u))
-        # over-the-shoulder shots look where the player looks
-        return Pose(pos, eye.yaw, eye.pitch, 85.0)
-    if style == "heli":
-        height = _lerp(760.0, 620.0, u)
-        pos = _around(head, eye.yaw, 180.0, height * 0.4, height)
-        return Pose(pos, *look_at(pos, head), 90.0)
-    raise ValueError(f"unknown cam style {style!r} (expected one of {', '.join(STYLES)})")
+    return _shot_pose(shot(style, u), eye)
 
 
 def blend(a: Pose, b: Pose, w: float) -> Pose:
@@ -139,16 +161,29 @@ def blend(a: Pose, b: Pose, w: float) -> Pose:
 
 
 def segment_pose(segment: Segment, eye: Pose, t: float) -> Pose:
-    """Camera pose at clip time t inside the segment. Intro: starts on the style shot,
-    ends exactly on `eye`. Down time: starts and ends on `eye`, style shot between."""
+    """Camera pose at clip time t inside the segment.
+
+    Intro: holds the style shot, then spirals round to just behind the player's head
+    and pushes into the exact first-person `eye` pose at the end (no jump on the cut to
+    the POV). Down time: one continuous pass of the style shot, hard-cut in and out."""
     u = (t - segment.start) / (segment.end - segment.start)
     u = min(1.0, max(0.0, u))
-    shot = style_pose(segment.style, eye, u)
-    if segment.kind == "intro":
-        return blend(shot, eye, smoothstep((u - OPENER_HOLD) / (1 - OPENER_HOLD)))
-    out = smoothstep(u / DOWNTIME_OUT)
-    back = smoothstep((u - (1 - DOWNTIME_BACK)) / DOWNTIME_BACK)
-    return blend(eye, shot, out * (1 - back))
+    if segment.kind != "intro":
+        return style_pose(segment.style, eye, u)
+    if u <= OPENER_HOLD:
+        return style_pose(segment.style, eye, u / OPENER_HOLD)
+    s = (u - OPENER_HOLD) / (1 - OPENER_HOLD)
+    sw = smoothstep(s)
+    a, b = shot(segment.style, 1.0), SWOOP_END
+    mix = Shot(
+        _lerp(a.angle, b.angle, sw),
+        _lerp(a.radius, b.radius, sw),
+        _lerp(a.height, b.height, sw),
+        _lerp(a.target_dz, b.target_dz, sw),
+        _lerp(a.fov, b.fov, sw),
+        "look",
+    )
+    return blend(_shot_pose(mix, eye, sw), eye, smoothstep((s - 0.7) / 0.3))
 
 
 # ---- planning --------------------------------------------------------------
@@ -183,10 +218,12 @@ def plan_segments(
 
     The opener runs from clip start until OPENER_SECONDS or one kill-padding before
     the first kill or camera switch, whichever is first (dropped when that leaves
-    less than MIN_SEGMENT). Down-time cuts use the gaps between the POV windows
+    less than MIN_SEGMENT). Down-time passes use the gaps between the POV windows
     around the kills (same padding rule as the splice planner), split at camera
-    switches so the player never changes mid-cut, minus the ranges `taken` by a real
-    cam path, capped at DOWNTIME_MAX each. `intro`/`downtime` are the style names.
+    switches so the player never changes mid-pass, minus the ranges `taken` by a real
+    cam path; each is one full pass of at least DOWNTIME_MIN seconds (capped at
+    DOWNTIME_MAX), and only the MAX_DOWNTIME_PASSES longest are kept so a clip is not
+    chopped up. `intro`/`downtime` are the style names.
     """
     taken = taken or []
     blockers = sorted([*kill_times, *switch_times])
@@ -205,13 +242,16 @@ def plan_segments(
             gaps.append((cursor, min(a, duration)))
             cursor = max(cursor, b)
         gaps.append((cursor, duration))
+        passes: list[Segment] = []
         for lo, hi in gaps:
             cuts = [lo, *[s for s in sorted(switch_times) if lo < s < hi], hi]
             for a, b in zip(cuts, cuts[1:]):
                 for fa, fb in _subtract(a, b, taken):
                     fb = min(fb, fa + DOWNTIME_MAX)
-                    if fb - fa >= MIN_SEGMENT:
-                        segments.append(Segment(round(fa, 2), round(fb, 2), "downtime", downtime))
+                    if fb - fa >= DOWNTIME_MIN:
+                        passes.append(Segment(round(fa, 2), round(fb, 2), "downtime", downtime))
+        longest = sorted(passes, key=lambda p: p.start - p.end)[:MAX_DOWNTIME_PASSES]
+        segments.extend(longest)
     return sorted(segments, key=lambda s: s.start)
 
 
