@@ -21,6 +21,23 @@ from highlights.models import Kill, Round
 
 DEFAULT_TICKRATE = 64.0
 
+
+class DemoParseError(Exception):
+    """A demo file could not be read."""
+
+
+def is_parser_error(exc: BaseException) -> bool:
+    """True for anything demoparser2 can throw at us, including Rust panics.
+
+    demoparser2 is Rust: bad input can raise pyo3_runtime.PanicException, which
+    derives from BaseException and so slips past `except Exception`. The module
+    cannot be imported, so identify the panic by class name and module.
+    KeyboardInterrupt/SystemExit/GeneratorExit must never count.
+    """
+    if isinstance(exc, Exception):
+        return True
+    return type(exc).__name__ == "PanicException" and type(exc).__module__ == "pyo3_runtime"
+
 # Side strings as demoparser2 reports them.
 _SIDE_BY_TEAM_NUM = {2: "T", 3: "CT"}
 
@@ -93,7 +110,9 @@ def _normalize_winner(value: object) -> str:
 def _safe_event(parser: DemoParser, name: str, **kwargs) -> pd.DataFrame:
     try:
         df = parser.parse_event(name, **kwargs)
-    except Exception:
+    except BaseException as exc:
+        if not is_parser_error(exc):
+            raise
         return pd.DataFrame()
     if df is None:
         return pd.DataFrame()
@@ -116,7 +135,9 @@ def _compute_tickrate(parser: DemoParser, sample_ticks: list[int]) -> float:
         return DEFAULT_TICKRATE
     try:
         df = parser.parse_ticks(["game_time"], ticks=[t1, t2])
-    except Exception:
+    except BaseException as exc:
+        if not is_parser_error(exc):
+            raise
         return DEFAULT_TICKRATE
     if df.empty:
         return DEFAULT_TICKRATE
@@ -173,7 +194,9 @@ def get_slots(parser: DemoParser, sample_tick: int) -> dict[str, int]:
     """
     try:
         df = parser.parse_ticks(["user_id"], ticks=[sample_tick])
-    except Exception:
+    except BaseException as exc:
+        if not is_parser_error(exc):
+            raise
         return {}
     if df.empty or "user_id" not in df.columns:
         return {}
@@ -187,11 +210,39 @@ def get_slots(parser: DemoParser, sample_tick: int) -> dict[str, int]:
 
 
 def parse_demo(path: Path) -> DemoData:
+    """Parse a demo, raising only DemoParseError for unreadable input.
+
+    demoparser2 can panic (PanicException, a BaseException) on corrupt files,
+    so the raw call is fenced in here and every parser failure becomes a
+    DemoParseError with a readable message. KeyboardInterrupt and friends
+    propagate untouched.
+    """
+    if not path.exists():
+        raise DemoParseError(f"{path.name}: file not found")
+    if path.stat().st_size == 0:
+        raise DemoParseError(f"{path.name}: file is empty")
+    try:
+        return _parse_demo(path)
+    except DemoParseError:
+        raise
+    except BaseException as exc:
+        if not is_parser_error(exc):
+            raise
+        detail = str(exc)[:120]
+        raise DemoParseError(
+            f"{path.name}: could not be read ({type(exc).__name__}: {detail}) "
+            "— is it a complete CS2 demo?"
+        ) from exc
+
+
+def _parse_demo(path: Path) -> DemoData:
     parser = DemoParser(str(path))
 
     try:
         header = parser.parse_header()
-    except Exception:
+    except BaseException as exc:
+        if not is_parser_error(exc):
+            raise
         header = {}
     map_name = str(header.get("map_name", "unknown"))
 
@@ -207,12 +258,12 @@ def parse_demo(path: Path) -> DemoData:
         other=["is_warmup_period"],
     )
     if deaths_df.empty:
-        raise ValueError("No player_death events found — is this a valid CS2 demo?")
+        raise DemoParseError(f"{path.name}: no kills found — is this a valid CS2 demo?")
     deaths_df = deaths_df.sort_values("tick")
 
     rounds = _build_rounds(parser, match_start_tick)
     if not rounds:
-        raise ValueError("No round_end events found — demo looks incomplete")
+        raise DemoParseError(f"{path.name}: no rounds found — demo looks incomplete")
     round_start_ticks = [r.start_tick for r in rounds]
 
     def round_index_for_tick(tick: int) -> int:
@@ -264,7 +315,9 @@ def parse_demo(path: Path) -> DemoData:
             steamid = str(row.get("steamid", ""))
             if steamid:
                 player_names[steamid] = str(row.get("name", ""))
-    except Exception:
+    except BaseException as exc:
+        if not is_parser_error(exc):
+            raise
         pass
     for kill in kills:
         player_names.setdefault(kill.attacker_steamid, kill.attacker_name)
@@ -302,7 +355,9 @@ def _build_rosters(parser: DemoParser, rounds: list[Round]) -> dict[int, dict[st
         sample_by_tick[r.freeze_end_tick + 16] = r.index
     try:
         df = parser.parse_ticks(["is_alive", "team_num"], ticks=list(sample_by_tick.keys()))
-    except Exception:
+    except BaseException as exc:
+        if not is_parser_error(exc):
+            raise
         return {}
     rosters: dict[int, dict[str, str]] = {r.index: {} for r in rounds}
     if df.empty:

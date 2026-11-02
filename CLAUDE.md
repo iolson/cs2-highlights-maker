@@ -66,6 +66,15 @@ the `run` subcommand. Entry point `highlights.cli:main`.
 - `video/` — wav→aac mux, optional drawtext overlay, concat demuxer
   (stream-copy default) or xfade chain.
 
+## Demo parser errors
+
+demoparser2 is Rust: bad input (e.g. an empty file) raises `pyo3_runtime.PanicException`, a
+`BaseException` that `except Exception` does NOT catch (the module is not importable). Around
+every demoparser2 call use `except BaseException as exc: if not is_parser_error(exc): raise`
+(`demo/parser.py`; KeyboardInterrupt/SystemExit must keep propagating). `parse_demo` only ever
+raises `DemoParseError`; commands show it as a one-line error (`run`) or skip that demo with a
+warning (`top`, `places build`); `build_spatial_metadata` degrades to status "unavailable".
+
 ## Recording invariants — do not "simplify" these
 
 Ported from CSDM source (verified June 2026; local reference copies in

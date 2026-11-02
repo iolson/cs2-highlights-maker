@@ -17,7 +17,7 @@ from typing import Any
 import pandas as pd
 from demoparser2 import DemoParser
 
-from highlights.demo.parser import DemoData
+from highlights.demo.parser import DemoData, DemoParseError, is_parser_error
 from highlights.models import Sequence
 from highlights.routes import clip_route
 
@@ -106,7 +106,9 @@ def _query_positions(
             if option != prop_options[0]:
                 note = "Some optional player props were unavailable; partial spatial metadata returned."
             break
-        except Exception:
+        except BaseException as exc:
+            if not is_parser_error(exc):
+                raise
             if option == prop_options[-1]:
                 raise
 
@@ -155,8 +157,16 @@ def sample_places(demo_path: Path, ticks: list[int]) -> list[tuple[float, float,
     """Sample (x, y, z, place) of alive players at the given ticks for the place lookup."""
     if not ticks:
         return []
-    parser = DemoParser(str(demo_path))
-    frame = parser.parse_ticks(["X", "Y", "Z", "last_place_name", "is_alive"], ticks=ticks)
+    try:
+        parser = DemoParser(str(demo_path))
+        frame = parser.parse_ticks(["X", "Y", "Z", "last_place_name", "is_alive"], ticks=ticks)
+    except BaseException as exc:
+        if not is_parser_error(exc):
+            raise
+        detail = str(exc)[:120]
+        raise DemoParseError(
+            f"{demo_path.name}: could not sample places ({type(exc).__name__}: {detail})"
+        ) from exc
     if frame is None or frame.empty:
         return []
     samples: list[tuple[float, float, float, str]] = []
@@ -233,7 +243,9 @@ def build_spatial_metadata(demo: DemoData, sequences: list[Sequence]) -> dict[in
 
     try:
         positions, properties, note = _query_positions(demo.path, sorted(requested_ticks))
-    except Exception as error:
+    except BaseException as error:
+        if not is_parser_error(error):
+            raise
         return {
             sequence.number: {
                 "status": "unavailable",

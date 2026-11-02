@@ -134,9 +134,6 @@ def test_default_group_still_dispatches_to_run(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "ensure_dem_file", lambda path, work_dir: path)
     monkeypatch.setattr(cli, "load_config", lambda: Config())
     monkeypatch.setattr(cli, "_resolve_work_dir", lambda config, demo_path: tmp_path)
-    # write_report() builds spatial metadata via spatial._query_positions, which
-    # opens a real demo file; stub it so this test stays parser-free.
-    monkeypatch.setattr("highlights.spatial._query_positions", lambda path, ticks: ({}, [], None))
     dem_file = tmp_path / "m.dem"
     dem_file.write_bytes(b"")
     result = click.testing.CliRunner().invoke(

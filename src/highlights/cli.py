@@ -18,7 +18,7 @@ from highlights.analysis.moments import cluster_moments
 from highlights.analysis.scoring import score_moments
 from highlights.analysis.selection import eligible_moments, select_sequences
 from highlights.config import Config, load_config
-from highlights.demo.parser import DemoData, ensure_dem_file, parse_demo
+from highlights.demo.parser import DemoData, DemoParseError, ensure_dem_file, parse_demo
 from highlights.demo.players import PlayerNotFound, resolve_players
 from highlights.models import CameraAction, Moment, Sequence
 from highlights.places import PlaceMap, load_places, places_dir, save_places
@@ -232,7 +232,10 @@ def run(
 
     with console.status("Parsing demo..."):
         demo_path = ensure_dem_file(demo, work_dir)
-        parsed = parse_demo(demo_path)
+        try:
+            parsed = parse_demo(demo_path)
+        except DemoParseError as exc:
+            raise click.ClickException(str(exc))
     info(
         f"Parsed [bold]{parsed.map_name}[/bold]: {len(parsed.rounds)} rounds, "
         f"{len(parsed.kills)} kills, tickrate {parsed.tickrate:.0f}"
@@ -403,11 +406,17 @@ def top(
     queries = [*([player] if player else []), *players]
 
     rows: list[tuple[DemoData, Moment]] = []
+    failed = 0
     for demo_path in demos:
         work_dir = _resolve_work_dir(config, demo_path)
         with console.status(f"Parsing {demo_path.name}..."):
             parsed_path = ensure_dem_file(demo_path, work_dir)
-            parsed = parse_demo(parsed_path)
+            try:
+                parsed = parse_demo(parsed_path)
+            except DemoParseError as exc:
+                warn(f"{exc} — skipping this demo")
+                failed += 1
+                continue
         info(
             f"Parsed [bold]{demo_path.name}[/bold] ({parsed.map_name}): {len(parsed.rounds)} rounds, "
             f"{len(parsed.kills)} kills"
@@ -425,6 +434,9 @@ def top(
 
         for moment in eligible_moments(moments, config.selection, player_steamids):
             rows.append((parsed, moment))
+
+    if failed == len(demos):
+        raise click.ClickException("None of the demos could be read")
 
     rows.sort(key=lambda row: row[1].score, reverse=True)
     if config.selection.top > 0:
@@ -453,14 +465,25 @@ def build(demos: tuple[Path, ...], every: float) -> None:
 
     config = load_config()
     maps: dict[str, PlaceMap] = {}
+    failed = 0
     for demo_path in demos:
         work_dir = _resolve_work_dir(config, demo_path)
         with console.status(f"Parsing {demo_path.name}..."):
             parsed_path = ensure_dem_file(demo_path, work_dir)
-            parsed = parse_demo(parsed_path)
+            try:
+                parsed = parse_demo(parsed_path)
+            except DemoParseError as exc:
+                warn(f"{exc} — skipping this demo")
+                failed += 1
+                continue
         step = max(1, round(parsed.tickrate * every))
         ticks = list(range(1, parsed.last_tick + 1, step))
-        samples = sample_places(parsed_path, ticks)
+        try:
+            samples = sample_places(parsed_path, ticks)
+        except DemoParseError as exc:
+            warn(f"{exc} — skipping this demo")
+            failed += 1
+            continue
         info(f"[bold]{demo_path.name}[/bold] ({parsed.map_name}): {len(samples)} place samples")
         if not samples:
             warn(f"{demo_path.name}: no place samples found; skipping")
@@ -469,6 +492,9 @@ def build(demos: tuple[Path, ...], every: float) -> None:
         if place_map is None:
             place_map = maps[parsed.map_name] = load_places(parsed.map_name) or PlaceMap(parsed.map_name)
         place_map.add_many(samples)
+
+    if failed == len(demos):
+        raise click.ClickException("None of the demos could be read")
 
     for place_map in maps.values():
         path = save_places(place_map)
