@@ -80,6 +80,7 @@ def add_cinematic_sequences(
     forced: CamPath | None = None,
     place_map: PlaceMap | None = None,
     labels: dict[str, str] | None = None,
+    quiet: bool = False,
 ) -> tuple[list[Sequence], dict[int, dict]]:
     """Follow each POV sequence with cinematic re-recordings of the same ticks.
 
@@ -88,7 +89,7 @@ def add_cinematic_sequences(
     least MIN_COVERAGE seconds of down time (its plan is stored in
     `splice_segments`); plays no path can cover are left POV-only. `forced` skips
     the ranking and uses that path for every play (splice mode still needs it to
-    cover something).
+    cover something). `quiet` suppresses all of its console output.
 
     Returns the interleaved list renumbered 1..N and the spatial metadata re-keyed
     to the new numbers.
@@ -96,8 +97,14 @@ def add_cinematic_sequences(
     result: list[Sequence] = []
     spatial: dict[int, dict] = {}
     routes: dict[str, list[str]] = {}
+
+    def say(kind: str, message: str) -> None:
+        if quiet:
+            return
+        (info if kind == "info" else warn)(message)
+
     if splice and takes > 1:
-        info("--cinematic-takes is ignored with --cinematic-mode splice (one cinematic per play)")
+        say("info", "--cinematic-takes is ignored with --cinematic-mode splice (one cinematic per play)")
 
     def append(sequence: Sequence, source_number: int, **changes: object) -> None:
         number = len(result) + 1
@@ -112,7 +119,7 @@ def add_cinematic_sequences(
         targets = _action_targets(source)
         ranked = [forced] if forced else rank_campaths(campaths, targets)
         if not ranked or not targets:
-            warn(f"{sequence.label}: no spatial data to match cam paths, no cinematic take")
+            say("warn", f"{sequence.label}: no spatial data to match cam paths, no cinematic take")
             continue
         distance = {path.name: path_distance(path, targets) for path in ranked}
         play_route = (source or {}).get("route", {}).get("text")
@@ -133,12 +140,13 @@ def add_cinematic_sequences(
 
         if not splice:
             shown = [candidate(path, None) for path in ranked[: max(takes, CANDIDATES_SHOWN)]]
-            info(escape(f"{sequence.label}{route_note}: cinematic candidates — {_describe(shown)}"))
+            say("info", escape(f"{sequence.label}{route_note}: cinematic candidates — {_describe(shown)}"))
             for path in ranked[:takes]:
                 if path.duration < sequence.duration_seconds(tickrate):
-                    warn(
+                    say(
+                        "warn",
                         f"{sequence.label}: cam path {path.name} runs {path.duration:.0f}s, shorter "
-                        "than the clip; the POV view returns when it ends"
+                        "than the clip; the POV view returns when it ends",
                     )
                 append(
                     sequence,
@@ -161,13 +169,14 @@ def add_cinematic_sequences(
             shown_plans = [*shown_plans, chosen]
         shown = [candidate(p, round(coverage(segs), 1)) for p, segs in shown_plans]
         if chosen is None:
-            warn(
+            say(
+                "warn",
                 f"{sequence.label}: no cam path sees the player for {MIN_COVERAGE:.0f}s of down time, "
-                f"POV only — closest were {_describe(shown)}"
+                f"POV only — closest were {_describe(shown)}",
             )
             continue
         path, segments = chosen
-        info(escape(f"{sequence.label}{route_note}: cinematic {path.name} — candidates: {_describe(shown)}"))
+        say("info", escape(f"{sequence.label}{route_note}: cinematic {path.name} — candidates: {_describe(shown)}"))
         append(
             sequence,
             sequence.number,
