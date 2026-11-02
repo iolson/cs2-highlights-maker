@@ -23,6 +23,7 @@ MERGE_GAP = 0.5  # POV blips shorter than this inside a cinematic cut are absorb
 VIEW_MARGIN = 0.85  # fraction of the half-FOV the player must sit inside
 ASPECT = 16 / 9
 MAX_DISTANCE = 4000.0  # world units; farther than this the player is a speck
+CAM_BELOW_TOLERANCE = 30.0  # camera farther below the player than this is under the floor (player z is the feet)
 
 Point = tuple[float, float, float]
 Trajectory = list[tuple[float, Point]]  # (seconds from clip start, position), ascending
@@ -44,6 +45,8 @@ def _in_view(position: Point, forward: Point, fov: float, target: Point) -> bool
     distance = dist(position, target)
     if not 50 < distance <= MAX_DISTANCE:
         return False
+    if position[2] < target[2] - CAM_BELOW_TOLERANCE:
+        return False  # camera under the player's floor
     # Camera basis without roll: left = up_world x forward, up = forward x left.
     left = (-forward[1], forward[0], 0.0)
     norm = (left[0] ** 2 + left[1] ** 2) ** 0.5

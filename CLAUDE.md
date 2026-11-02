@@ -125,8 +125,10 @@ Set per clip in `build_actions_file`; they deviate from stock CSDM on purpose.
   around each kill (the padding between two kills shrinks, floor 0.4 s, so a
   1.5 s cut still fits in a tight gap), the POV player (via `cameras` + `pov_trajectories`) must sit
   inside the cam path's view cone (horizontal fov, 0.85 margin, 16:9, ≤ 4000
-  units; roll ignored; NO occlusion test), runs < 1.5 s dropped. Path choice is
-  proximity-first (same ranking as append mode): the closest path whose coverage
+  units; roll ignored; NO occlusion test, but a camera more than 30 units below the
+  player's feet never sees them: `CAM_BELOW_TOLERANCE`), runs < 1.5 s dropped. Path choice is
+  proximity-first (height difference weighted ×2, `VERTICAL_WEIGHT`, so paths on another
+  floor rank behind same-floor ones) (same ranking as append mode): the closest path whose coverage
   is ≥ `MIN_COVERAGE` (3 s) wins — coverage is only a gate, NOT the ranking (an
   earlier longest-coverage ranking picked far wide cameras that "see" the player
   through walls). Plays with no eligible path get no cinematic. Candidates

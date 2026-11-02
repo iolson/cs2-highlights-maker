@@ -10,13 +10,16 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from math import cos, dist, radians, sin, sqrt
+from math import cos, radians, sin, sqrt
 from pathlib import Path
 
 from highlights.config import Config
 from highlights.util.log import warn
 
 CAMPATH_SUFFIXES = {".dz", ".campath", ".xml"}
+# Height difference counts this much more than horizontal distance, so same-floor
+# paths outrank paths on another level.
+VERTICAL_WEIGHT = 2.0
 
 
 @dataclass(frozen=True)
@@ -124,11 +127,15 @@ def load_campaths(base: Path, map_name: str) -> list[CamPath]:
     return paths
 
 
+def _weighted_distance(a: tuple[float, float, float], b: tuple[float, float, float]) -> float:
+    return sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (VERTICAL_WEIGHT * (a[2] - b[2])) ** 2)
+
+
 def path_distance(path: CamPath, targets: list[tuple[float, float, float]]) -> float:
     """How close a path passes to the action: mean over targets of the nearest path
-    point, in world units. Assumes campath space equals demo world space — not yet
-    validated in-game."""
-    return sum(min(dist(point, target) for point in path.points) for target in targets) / len(targets)
+    point, in world units with height difference weighted up. Assumes campath space
+    equals demo world space — not yet validated in-game."""
+    return sum(min(_weighted_distance(point, target) for point in path.points) for target in targets) / len(targets)
 
 
 def rank_campaths(campaths: list[CamPath], targets: list[tuple[float, float, float]]) -> list[CamPath]:
