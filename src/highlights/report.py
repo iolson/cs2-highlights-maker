@@ -15,7 +15,7 @@ from pathlib import Path
 from rich.table import Table
 
 from highlights.demo.parser import DemoData
-from highlights.models import Sequence
+from highlights.models import Moment, Sequence
 from highlights.spatial import build_spatial_metadata
 from highlights.util.log import console
 
@@ -309,5 +309,31 @@ def print_sequences_table(demo: DemoData, sequences: list[Sequence]) -> None:
             f"{s.score:.1f}",
             f"{s.duration_seconds(demo.tickrate):.0f}s",
             f"{s.start_tick}-{s.end_tick}",
+        )
+    console.print(table)
+
+
+def print_top_table(rows: list[tuple[DemoData, Moment]]) -> None:
+    demo_count = len({str(demo.path) for demo, _ in rows})
+    table = Table(title=f"Top highlights across {demo_count} demos")
+    table.add_column("#", justify="right")
+    table.add_column("Demo")
+    table.add_column("Map")
+    table.add_column("Round", justify="right")
+    table.add_column("Player")
+    table.add_column("Highlight")
+    table.add_column("Score")
+    for index, (demo, moment) in enumerate(rows, 1):
+        name = demo.path.stem
+        if len(name) > 24:
+            name = name[:23] + "…"
+        table.add_row(
+            str(index),
+            name,
+            demo.map_name,
+            str(moment.round_index + 1),
+            moment.name,
+            moment.describe(),
+            f"{moment.score:.1f}",
         )
     console.print(table)

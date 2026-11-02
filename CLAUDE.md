@@ -15,6 +15,9 @@ Windows-only at the recording stage; analysis runs anywhere.
 .venv\Scripts\highlights update-tools                    # re-download latest HLAE/FFmpeg after a CS2 update
 ```
 
+`highlights top DEMO... [--players ..] [--top N]` pools and ranks moments across demos and
+prints one table only (no JSON, no recording); players missing from a demo skip that demo.
+
 CLI: click with a custom `DefaultRunGroup` — `highlights match.dem` resolves to
 the `run` subcommand. Entry point `highlights.cli:main`.
 

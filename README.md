@@ -15,6 +15,17 @@ highlights doctor                         # environment check
 highlights update-tools                   # re-download latest HLAE/FFmpeg
 ```
 
+### Compilations across demos
+
+Rank the best moments over several demos at once:
+
+```
+highlights top a.dem b.dem c.dem --top 10
+highlights top *.dem --players Alice --players Bob
+```
+
+This only prints a ranked table (no JSON report, no recording).
+
 ## How it works
 
 ```

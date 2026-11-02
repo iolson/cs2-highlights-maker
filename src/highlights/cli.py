@@ -16,12 +16,12 @@ from highlights import __version__
 from highlights.analysis.clutch import attach_clutches, detect_clutches
 from highlights.analysis.moments import cluster_moments
 from highlights.analysis.scoring import score_moments
-from highlights.analysis.selection import select_sequences
+from highlights.analysis.selection import eligible_moments, select_sequences
 from highlights.config import Config, load_config
 from highlights.demo.parser import DemoData, ensure_dem_file, parse_demo
 from highlights.demo.players import PlayerNotFound, resolve_players
-from highlights.models import CameraAction, Sequence
-from highlights.report import finalize_report, print_sequences_table, write_report
+from highlights.models import CameraAction, Moment, Sequence
+from highlights.report import finalize_report, print_sequences_table, print_top_table, write_report
 from highlights.util.log import console, error, info, warn
 
 
@@ -51,11 +51,16 @@ def _resolve_work_dir(config: Config, demo_path: Path) -> Path:
     return app_data_dir() / "work" / demo_path.stem
 
 
-def _analyze(demo: DemoData, config: Config, queries: list[str]) -> list[Sequence]:
+def _scored_moments(demo: DemoData, config: Config) -> list[Moment]:
     moments = cluster_moments(demo.kills, demo.tickrate, config.selection.kill_gap_seconds)
     clutches = detect_clutches(demo)
     moments = attach_clutches(moments, clutches, demo)
     score_moments(moments, demo)
+    return moments
+
+
+def _analyze(demo: DemoData, config: Config, queries: list[str]) -> list[Sequence]:
+    moments = _scored_moments(demo, config)
 
     player_steamids: list[str] | None = None
     if queries:
@@ -317,6 +322,71 @@ def _splice_cinematics(ffmpeg_exe: Path, recorded: list, clips_dir: Path, crf: i
             )
         result.append((output, clip))
     return result
+
+
+@main.command()
+@click.argument("demos", nargs=-1, required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--player", default=None, help="Only this player's highlights (steamid64 or name)")
+@click.option(
+    "--players",
+    "players",
+    multiple=True,
+    help="Only these players' highlights: comma-separated and/or repeated (steamid64 or name)",
+)
+@click.option("--top", type=int, default=None, help="Max number of highlights")
+@click.option("--min-kills", type=int, default=None, help="Min kills for a moment to qualify")
+def top(
+    demos: tuple[Path, ...],
+    player: str | None,
+    players: tuple[str, ...],
+    top: int | None,
+    min_kills: int | None,
+) -> None:
+    """Rank highlights across several DEMOs and print one table (no recording)."""
+    config = load_config()
+    for section, name, value in (
+        (config.selection, "top", top),
+        (config.selection, "min_kills", min_kills),
+    ):
+        if value is not None:
+            setattr(section, name, value)
+
+    queries = [*([player] if player else []), *players]
+
+    rows: list[tuple[DemoData, Moment]] = []
+    for demo_path in demos:
+        work_dir = _resolve_work_dir(config, demo_path)
+        with console.status(f"Parsing {demo_path.name}..."):
+            parsed_path = ensure_dem_file(demo_path, work_dir)
+            parsed = parse_demo(parsed_path)
+        info(
+            f"Parsed [bold]{demo_path.name}[/bold] ({parsed.map_name}): {len(parsed.rounds)} rounds, "
+            f"{len(parsed.kills)} kills"
+        )
+
+        moments = _scored_moments(parsed, config)
+
+        player_steamids: list[str] | None = None
+        if queries:
+            try:
+                player_steamids = resolve_players(parsed, queries)
+            except PlayerNotFound as exc:
+                warn(f"{demo_path.name}: {exc} — skipping this demo for these players")
+                continue
+
+        for moment in eligible_moments(moments, config.selection, player_steamids):
+            rows.append((parsed, moment))
+
+    rows.sort(key=lambda row: row[1].score, reverse=True)
+    if config.selection.top > 0:
+        rows = rows[: config.selection.top]
+
+    if not rows:
+        raise click.ClickException(
+            "No highlights matched the criteria — try --min-kills 1 or check the demos"
+        )
+
+    print_top_table(rows)
 
 
 @main.command()
