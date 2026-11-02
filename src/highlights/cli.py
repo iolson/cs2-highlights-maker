@@ -66,6 +66,18 @@ def _analyze(demo: DemoData, config: Config, queries: list[str]) -> list[Sequenc
     return select_sequences(moments, demo, config.selection, config.recording, player_steamids)
 
 
+def _parse_player_names(values: tuple[str, ...]) -> dict[str, str]:
+    """Parse `STEAMID=NAME` strings into a steamid -> name mapping (later values win)."""
+    result: dict[str, str] = {}
+    for value in values:
+        steamid, sep, name = value.partition("=")
+        steamid, name = steamid.strip(), name.strip()
+        if not sep or not steamid.isdigit() or not name:
+            raise click.BadParameter(f"expected STEAMID=NAME, got {value!r}")
+        result[steamid] = name
+    return result
+
+
 @main.command()
 @click.argument("demo", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 @click.option("-o", "--output", type=click.Path(path_type=Path), default=None, help="Output MP4 path")
@@ -83,6 +95,13 @@ def _analyze(demo: DemoData, config: Config, queries: list[str]) -> list[Sequenc
 @click.option("--width", type=int, default=None, help="Recording width")
 @click.option("--height", type=int, default=None, help="Recording height")
 @click.option("--crf", type=int, default=None, help="x264 CRF for recorded clips")
+@click.option(
+    "--player-name",
+    "player_names",
+    multiple=True,
+    metavar="STEAMID=NAME",
+    help="Rename a player in the recording (steamid64=Display Name); repeatable, overrides config.toml",
+)
 @click.option("--json-only", is_flag=True, help="Analyze only: write highlights.json and stop")
 @click.option("--keep-clips", is_flag=True, help="Keep the work dir with individual clips")
 @click.option("--overlays/--no-overlays", default=False, help="Draw a text label on each clip")
@@ -133,6 +152,7 @@ def run(
     width: int | None,
     height: int | None,
     crf: int | None,
+    player_names: tuple[str, ...],
     json_only: bool,
     keep_clips: bool,
     overlays: bool,
@@ -156,6 +176,8 @@ def run(
     ):
         if value is not None:
             setattr(section, name, value)
+
+    config.recording.player_names.update(_parse_player_names(player_names))
 
     output = output or demo.with_name(demo.stem + "-highlights.mp4")
     work_dir = _resolve_work_dir(config, demo)

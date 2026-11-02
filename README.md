@@ -84,6 +84,8 @@ lead_out_seconds = 3.0
 
 # Optional: show custom names (SteamID64 = "name") via HLAE's mirv_replace_name.
 # HLAE only renames "some parts of the HUD"; check the kill feed in-game.
+# The same can be done per run with `--player-name 76561198000000000="Display Name"`
+# (repeatable; CLI overrides this table).
 [recording.player_names]
 76561198000000000 = "Display Name"
 
