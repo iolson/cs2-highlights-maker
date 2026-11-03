@@ -94,3 +94,20 @@ def test_actions_file_has_colors_and_no_local_player_highlight(tmp_path):
     text = actions.write().read_text(encoding="utf-8")
     assert "mirv_deathmsg colors ct 0 172 231 255" in text and "mirv_deathmsg colors t 246 202 38 255" in text
     assert "localPlayer" not in text
+
+
+def test_killfeed_part_colors_override_plain():
+    from highlights.config import RecordingConfig
+    from highlights.recording.sequences import killfeed_color_commands, parse_color
+
+    assert parse_color("255 0 0") == "255 0 0 255"
+    assert parse_color("10, 20, 30, 40") == "10 20 30 40"
+    assert parse_color("300 0 0 0") is None
+    cfg = RecordingConfig(killfeed_border_color="255 0 0 255", killfeed_background_local_color="#000000AA")
+    assert killfeed_color_commands(cfg) == [
+        "mirv_deathmsg colors background 0 0 0 0",
+        "mirv_deathmsg colors backgroundLocal 0 0 0 170",
+        "mirv_deathmsg colors border 255 0 0 255",
+    ]
+    off = RecordingConfig(killfeed_plain=False, killfeed_border_color="1 2 3 4")
+    assert killfeed_color_commands(off) == ["mirv_deathmsg colors border 1 2 3 4"]

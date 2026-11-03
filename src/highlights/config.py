@@ -49,6 +49,10 @@ class RecordingConfig:
     killfeed_t_color: str = ""
     # Hide the kill-feed row backgrounds and the red border around the local player's rows.
     killfeed_plain: bool = True
+    # Per-part overrides ("#RRGGBB[AA]" or "R G B A"); win over killfeed_plain.
+    killfeed_background_color: str = ""
+    killfeed_background_local_color: str = ""
+    killfeed_border_color: str = ""
 
 
 @dataclass

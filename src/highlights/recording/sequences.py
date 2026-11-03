@@ -105,19 +105,38 @@ def hex_to_rgba(value: str) -> str | None:
     return " ".join(str(c) for c in channels)
 
 
+def parse_color(value: str) -> str | None:
+    """"#RRGGBB[AA]" or "R G B A" (0-255 each, alpha optional) -> "R G B A"; None when invalid."""
+    parts = value.replace(",", " ").split()
+    if len(parts) in (3, 4) and all(p.isdigit() and int(p) <= 255 for p in parts):
+        return " ".join([*parts, "255"][:4])
+    return hex_to_rgba(value) if len(parts) == 1 else None
+
+
 def killfeed_color_commands(recording: RecordingConfig) -> list[str]:
-    """`mirv_deathmsg colors` for the transparent row background/border (`killfeed_plain`) and the configured team colors; invalid values are warned about and skipped."""
+    """`mirv_deathmsg colors <target> R G B A` for each configured color; invalid values are warned about and skipped.
+
+    background, backgroundLocal and border default to fully transparent while `killfeed_plain` is on.
+    """
+    plain = "0 0 0 0" if recording.killfeed_plain else ""
+    targets = (
+        ("ct", recording.killfeed_ct_color, ""),
+        ("t", recording.killfeed_t_color, ""),
+        ("background", recording.killfeed_background_color, plain),
+        ("backgroundLocal", recording.killfeed_background_local_color, plain),
+        ("border", recording.killfeed_border_color, plain),
+    )
     commands = []
-    if recording.killfeed_plain:
-        commands += [f"mirv_deathmsg colors {part} 0 0 0 0" for part in ("background", "backgroundLocal", "border")]
-    for team, value in (("ct", recording.killfeed_ct_color), ("t", recording.killfeed_t_color)):
-        if not value.strip():
-            continue
-        rgba = hex_to_rgba(value)
-        if rgba is None:
-            warn(f"Ignoring killfeed_{team}_color {value!r}: expected #RRGGBB or #RRGGBBAA")
-            continue
-        commands.append(f"mirv_deathmsg colors {team} {rgba}")
+    for target, value, default in targets:
+        if value.strip():
+            rgba = parse_color(value)
+            if rgba is None:
+                warn(f"Ignoring killfeed color for {target} {value!r}: expected #RRGGBB, #RRGGBBAA or 'R G B A'")
+                continue
+        else:
+            rgba = default
+        if rgba:
+            commands.append(f"mirv_deathmsg colors {target} {rgba}")
     return commands
 
 

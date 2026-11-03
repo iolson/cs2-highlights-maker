@@ -116,6 +116,10 @@ lead_out_seconds = 3.0
 killfeed_ct_color = "#00ACE7"
 killfeed_t_color = "#F6CA26"
 killfeed_plain = true   # default: transparent row backgrounds and no red local-player border
+# Per-part colors ("#RRGGBB[AA]" or "R G B A"); override killfeed_plain for that part.
+# killfeed_background_color = "0 0 0 0"
+# killfeed_background_local_color = "0 0 0 0"
+# killfeed_border_color = "255 0 0 255"
 
 # Optional: show custom names (SteamID64 = "name") via HLAE's mirv_replace_name.
 # HLAE only renames "some parts of the HUD"; check the kill feed in-game.
