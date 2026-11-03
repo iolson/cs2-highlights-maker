@@ -44,6 +44,8 @@ class RecordingConfig:
     clean_hud: bool = True  # cl_draw_only_deathnotices 1
     # SteamID64 -> display name, applied with `mirv_replace_name byXuid` (HUD only).
     player_names: dict[str, str] = field(default_factory=dict)
+    # Extra console commands run at every clip's setup tick (e.g. depth-of-field settings).
+    extra_commands: list[str] = field(default_factory=list)
     # Kill-feed team colors as "#RRGGBB" or "#RRGGBBAA" (mirv_deathmsg colors); "" = game default.
     killfeed_ct_color: str = ""
     killfeed_t_color: str = ""

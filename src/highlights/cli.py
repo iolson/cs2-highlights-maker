@@ -151,6 +151,13 @@ def _parse_player_names(values: tuple[str, ...]) -> dict[str, str]:
     metavar="STEAMID=NAME",
     help="Rename a player in the recording (steamid64=Display Name); repeatable, overrides config.toml",
 )
+@click.option(
+    "--cmd",
+    "extra_commands",
+    multiple=True,
+    metavar="COMMAND",
+    help="Extra console command run at every clip's start (repeatable, added after config.toml's extra_commands)",
+)
 @click.option("--json-only", is_flag=True, help="Analyze only: write highlights.json and stop")
 @click.option("--keep-clips", is_flag=True, help="Keep the work dir with individual clips")
 @click.option("--overlays/--no-overlays", default=False, help="Draw a text label on each clip")
@@ -235,6 +242,7 @@ def run(
     height: int | None,
     crf: int | None,
     player_names: tuple[str, ...],
+    extra_commands: tuple[str, ...],
     json_only: bool,
     keep_clips: bool,
     overlays: bool,
@@ -271,6 +279,7 @@ def run(
             setattr(section, name, value)
 
     config.recording.player_names.update(_parse_player_names(player_names))
+    config.recording.extra_commands = [*config.recording.extra_commands, *extra_commands]
 
     output = output or demo.with_name(demo.stem + "-highlights.mp4")
     work_dir = _resolve_work_dir(config, demo)

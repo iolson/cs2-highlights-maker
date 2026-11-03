@@ -113,6 +113,13 @@ def parse_color(value: str) -> str | None:
     return hex_to_rgba(value) if len(parts) == 1 else None
 
 
+def extra_console_commands(commands: object) -> list[str]:
+    """The user's own console commands, one string each; blanks are dropped, a non-list is ignored."""
+    if not isinstance(commands, (list, tuple)):
+        return []
+    return [text for text in (str(c).strip() for c in commands) if text]
+
+
 def killfeed_color_commands(recording: RecordingConfig) -> list[str]:
     """`mirv_deathmsg colors <target> R G B A` for each configured color; invalid values are warned about and skipped.
 
@@ -181,6 +188,7 @@ def build_actions_file(
     uses_campaths = any(s.campath for s in sequences)
     name_overrides = name_override_commands(recording.player_names)
     killfeed_colors = killfeed_color_commands(recording)
+    extra_commands = extra_console_commands(recording.extra_commands)
 
     for i, sequence in enumerate(sequences):
         if not sequence.cameras:
@@ -213,7 +221,7 @@ def build_actions_file(
         actions.add_exec(setup_tick, "mirv_deathmsg lifetimeMod 1.0")
         # Reset stale kills from the preceding sequence.
         actions.add_exec(setup_tick, "mirv_deathmsg clear")
-        for command in (*name_overrides, *killfeed_colors):
+        for command in (*name_overrides, *killfeed_colors, *extra_commands):
             actions.add_exec(setup_tick, command)
         actions.add_exec(setup_tick, "spec_show_xray 0")
         actions.add_exec(setup_tick, "mp_display_kill_assists 1")

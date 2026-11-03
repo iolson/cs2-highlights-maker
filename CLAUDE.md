@@ -141,6 +141,9 @@ Set per clip in `build_actions_file`; they deviate from stock CSDM on purpose.
 - **Kill-feed lifetime:** `max(60, clip seconds + 10)` with `lifetimeMod 1.0`,
   so POV kills persist to the end of the clip instead of fading after 5 s.
   `recording.death_notices_duration` is therefore no longer used here.
+- **Extra commands:** `recording.extra_commands` (list of console command strings) and `--cmd` (repeatable)
+  are emitted verbatim at each sequence's setup tick (`extra_console_commands`); no validation, so the
+  commands are the user's responsibility (e.g. depth-of-field settings).
 - **Kill-feed part colors:** `killfeed_background_color`, `killfeed_background_local_color`, `killfeed_border_color` (`"#RRGGBB[AA]"` or `"R G B A"`) override `killfeed_plain` per part.
 - **Kill-feed plain:** `recording.killfeed_plain` (default true) sets `mirv_deathmsg colors background|backgroundLocal|border 0 0 0 0` (no row background, no red local-player border); not yet validated in-game.
 - **Kill-feed colors:** `recording.killfeed_ct_color` / `killfeed_t_color` (`"#RRGGBB"` or

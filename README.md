@@ -115,6 +115,17 @@ height = 1080
 crf = 23
 lead_in_seconds = 4.0
 lead_out_seconds = 3.0
+# Optional extra console commands run at every clip's start (e.g. depth of field / post-processing).
+# The same per run with `--cmd "command"` (repeatable, added after these).
+# Depth of field with CS2's own cvars (distances in game units; starting values, tune to taste):
+# extra_commands = [
+#   "r_dof_override 1",
+#   "r_dof_override_near_blurry 20",
+#   "r_dof_override_near_crisp 60",
+#   "r_dof_override_far_crisp 300",
+#   "r_dof_override_far_blurry 1200",
+#   "r_dof_override_tilt_to_ground 0",
+# ]
 # Optional kill-feed team colors (#RRGGBB or #RRGGBBAA); leave out for the game's own.
 killfeed_ct_color = "#00ACE7"
 killfeed_t_color = "#F6CA26"

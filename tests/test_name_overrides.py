@@ -111,3 +111,21 @@ def test_killfeed_part_colors_override_plain():
     ]
     off = RecordingConfig(killfeed_plain=False, killfeed_border_color="1 2 3 4")
     assert killfeed_color_commands(off) == ["mirv_deathmsg colors border 1 2 3 4"]
+
+
+def test_extra_commands_are_emitted_at_setup_tick(tmp_path):
+    from test_campaths import _sequence
+    from highlights.config import RecordingConfig
+    from highlights.recording.sequences import build_actions_file, extra_console_commands
+
+    from conftest import make_demo
+
+    assert extra_console_commands(["  a 1 ", "", "b"]) == ["a 1", "b"]
+    assert extra_console_commands("not a list") == []
+    demo = make_demo([], [], slots={"111": 1})
+    recording = RecordingConfig(extra_commands=["my_dof_cmd 1", "my_dof_focus 120"])
+    actions = build_actions_file(tmp_path / "d.dem", [_sequence()], demo, recording, tmp_path)
+    text = actions.write().read_text(encoding="utf-8")
+    assert "my_dof_cmd 1" in text and "my_dof_focus 120" in text
+    plain = build_actions_file(tmp_path / "d.dem", [_sequence()], demo, RecordingConfig(), tmp_path)
+    assert "my_dof_cmd" not in plain.write().read_text(encoding="utf-8")
