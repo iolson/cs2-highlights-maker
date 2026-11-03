@@ -78,6 +78,9 @@ the `run` subcommand. Entry point `highlights.cli:main`.
 - `routes.py` — `clip_route(sequence, spatial)`: the places the POV player moves through
   (from the place hints already sampled in spatial metadata) and where each selected kill
   landed; stored as `spatial.route` and shown as the "Where" column of the highlights table.
+- `video/vertical.py` — `--vertical blur|crop` (+ `--vertical-killfeed`): final 1080x1920 copy
+  `<output>-vertical.mp4` via one FFmpeg filter pass after the concat (kill-feed crop region constants
+  assume the default top-right position).
 - `video/` — wav→aac mux, optional drawtext overlay, concat demuxer
   (stream-copy default) or xfade chain.
 

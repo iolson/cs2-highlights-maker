@@ -13,6 +13,7 @@ highlights match.dem --cinematic          # also re-record each play through you
 highlights match.dem --cinematic --cinematic-mode splice   # cut the cinematic into the POV during down time
 highlights match.dem --intro-cam face     # open each clip with a generated face cam that eases into the POV
 highlights match.dem --downtime-cam random   # cut generated cams into down time between kills
+highlights match.dem --vertical blur --vertical-killfeed --max-duration 55   # also a 1080x1920 Shorts/Reels version
 highlights doctor                         # environment check
 highlights update-tools                   # re-download latest HLAE/FFmpeg
 ```
@@ -222,6 +223,17 @@ indoors), so review each run. The offsets are estimates, tuned in
 `src/highlights/recording/dyncams.py`. Not validated in-game yet: that the observed
 player's model is drawn while a cam path is active, the cam path fov value, and the
 hand-off to the POV.
+
+## Vertical version (`--vertical`)
+
+Recording stays 16:9; `--vertical blur|crop` adds a 1080x1920 copy of the finished video next
+to it (`<output>-vertical.mp4`, audio copied, timings unchanged).
+
+- `blur`: the footage fills the width (1080x608) over a blurred, zoomed copy of itself, so
+  nothing is cropped. `--vertical-killfeed` also cuts the top-right kill feed out and shows it
+  enlarged below the footage (assumes the default kill-feed position).
+- `crop`: the centre 9:16 slice, scaled up; loses the kill feed and the sides.
+- Use `--max-duration 55` to keep the whole video inside a Shorts-style limit.
 
 ## Important notes
 

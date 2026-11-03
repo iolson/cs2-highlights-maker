@@ -205,6 +205,18 @@ def _parse_player_names(values: tuple[str, ...]) -> dict[str, str]:
     "(same styles as --intro-cam)",
 )
 @click.option(
+    "--vertical",
+    type=click.Choice(["blur", "crop"]),
+    default=None,
+    help="Also write a 1080x1920 version (<output>-vertical.mp4): blur = footage over a blurred "
+    "copy of itself, crop = centre slice",
+)
+@click.option(
+    "--vertical-killfeed",
+    is_flag=True,
+    help="With --vertical blur: show the kill feed, enlarged, below the footage",
+)
+@click.option(
     "--timing-offset",
     type=float,
     default=0.0,
@@ -234,9 +246,13 @@ def run(
     cinematic_mode: str,
     intro_cam: list[str] | None,
     downtime_cam: list[str] | None,
+    vertical: str | None,
+    vertical_killfeed: bool,
     timing_offset: float,
 ) -> None:
     """Parse DEMO, detect highlights, record them in-game and produce an MP4."""
+    if vertical_killfeed and vertical != "blur":
+        raise click.UsageError("--vertical-killfeed needs --vertical blur")
     if suggest_cinematic and cinematic:
         raise click.UsageError("--suggest-cinematic is for previewing; use it without --cinematic")
     if suggest_cinematic and (intro_cam or downtime_cam):
@@ -369,6 +385,14 @@ def run(
             concat_clips_with_fade(tools.ffmpeg_exe, clips, output)
         else:
             concat_clips(tools.ffmpeg_exe, clips, output, work_dir)
+
+    if vertical:
+        from highlights.video.vertical import make_vertical
+
+        vertical_path = output.with_name(f"{output.stem}-vertical{output.suffix}")
+        with console.status("Writing the vertical version..."):
+            make_vertical(tools.ffmpeg_exe, output, vertical_path, vertical, vertical_killfeed, config.recording.crf)
+        info(f"Vertical version: {vertical_path}")
 
     # Now that real clip lengths are known, give each kill a time in the final video.
     from highlights.video.concat import FADE_DURATION
