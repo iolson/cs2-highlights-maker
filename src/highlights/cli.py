@@ -16,7 +16,7 @@ from highlights import __version__
 from highlights.analysis.clutch import attach_clutches, detect_clutches
 from highlights.analysis.moments import cluster_moments
 from highlights.analysis.scoring import score_moments
-from highlights.analysis.selection import eligible_moments, select_sequences
+from highlights.analysis.selection import clip_seconds, eligible_moments, select_sequences
 from highlights.config import Config, load_config
 from highlights.demo.parser import DemoData, DemoParseError, ensure_dem_file, parse_demo
 from highlights.demo.players import PlayerNotFound, resolve_players
@@ -458,18 +458,21 @@ def _splice_cinematics(ffmpeg_exe: Path, recorded: list, clips_dir: Path, crf: i
     help="Only these players' highlights: comma-separated and/or repeated (steamid64 or name)",
 )
 @click.option("--top", type=int, default=None, help="Max number of highlights")
+@click.option("--max-duration", type=float, default=None, help="Max total video length, seconds")
 @click.option("--min-kills", type=int, default=None, help="Min kills for a moment to qualify")
 def top(
     demos: tuple[Path, ...],
     player: str | None,
     players: tuple[str, ...],
     top: int | None,
+    max_duration: float | None,
     min_kills: int | None,
 ) -> None:
     """Rank highlights across several DEMOs and print one table (no recording)."""
     config = load_config()
     for section, name, value in (
         (config.selection, "top", top),
+        (config.selection, "max_duration", max_duration),
         (config.selection, "min_kills", min_kills),
     ):
         if value is not None:
@@ -511,15 +514,32 @@ def top(
         raise click.ClickException("None of the demos could be read")
 
     rows.sort(key=lambda row: row[1].score, reverse=True)
-    if config.selection.top > 0:
-        rows = rows[: config.selection.top]
+    total_seconds = 0.0
+    if config.selection.top > 0 or config.selection.max_duration > 0:
+        # Best first; a clip that would overrun the budget is skipped so shorter ones can still fit.
+        picked = []
+        for demo, moment in rows:
+            if config.selection.top > 0 and len(picked) >= config.selection.top:
+                break
+            seconds = clip_seconds(moment, demo, config.recording)
+            if config.selection.max_duration > 0 and total_seconds + seconds > config.selection.max_duration:
+                continue
+            picked.append((demo, moment))
+            total_seconds += seconds
+        rows = picked
 
     if not rows:
+        if config.selection.max_duration > 0:
+            raise click.ClickException(
+                f"No clip fits in --max-duration {config.selection.max_duration:.0f}s — raise it"
+            )
         raise click.ClickException(
             "No highlights matched the criteria — try --min-kills 1 or check the demos"
         )
 
     print_top_table(rows)
+    if config.selection.max_duration > 0:
+        info(f"{len(rows)} clips, about {total_seconds:.0f}s of {config.selection.max_duration:.0f}s")
 
 
 @main.group(name="places")

@@ -141,3 +141,15 @@ def test_default_group_still_dispatches_to_run(tmp_path, monkeypatch):
         [str(dem_file), "--json-only", "-o", str(tmp_path / "out.mp4")],
     )
     assert result.exit_code == 0, result.output
+
+
+def test_top_max_duration_limits_total_length(runner_and_demos):
+    runner, files, _ = runner_and_demos
+    everything = _table_rows(_top(runner, files).output)
+    assert len(everything) >= 2
+    tiny = _top(runner, files, "--max-duration", "1")
+    assert tiny.exit_code != 0 and "No clip fits" in tiny.output
+    full = _top(runner, files, "--max-duration", "100000")
+    assert full.exit_code == 0, full.output
+    assert len(_table_rows(full.output)) == len(everything)
+    assert "of 100000s" in full.output

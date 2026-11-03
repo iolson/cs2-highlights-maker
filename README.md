@@ -25,9 +25,11 @@ Rank the best moments over several demos at once:
 ```
 highlights top a.dem b.dem c.dem --top 10
 highlights top *.dem --players Alice --players Bob
+highlights top *.dem --players Alice,Bob --max-duration 247   # best clips that fit 4m07s in total
 ```
 
-This only prints a ranked table (no JSON report, no recording).
+This only prints a ranked table (no JSON report, no recording). `--max-duration SECONDS` keeps the best
+clips whose lengths add up to at most that total (a clip that would overrun is skipped, shorter ones can still fit).
 
 ### Place names
 

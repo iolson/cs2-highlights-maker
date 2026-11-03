@@ -43,6 +43,12 @@ def _clip_bounds(moment: Moment, demo: DemoData, recording: RecordingConfig) -> 
     return start, end
 
 
+def clip_seconds(moment: Moment, demo: DemoData, recording: RecordingConfig) -> float:
+    """Length of the clip recorded for `moment` (before any overlap merge)."""
+    start, end = _clip_bounds(moment, demo, recording)
+    return (end - start) / demo.tickrate
+
+
 def select_sequences(
     moments: list[Moment],
     demo: DemoData,
