@@ -106,8 +106,10 @@ def hex_to_rgba(value: str) -> str | None:
 
 
 def killfeed_color_commands(recording: RecordingConfig) -> list[str]:
-    """`mirv_deathmsg colors` for the configured team colors; invalid values are warned about and skipped."""
+    """`mirv_deathmsg colors` for the transparent row background/border (`killfeed_plain`) and the configured team colors; invalid values are warned about and skipped."""
     commands = []
+    if recording.killfeed_plain:
+        commands += [f"mirv_deathmsg colors {part} 0 0 0 0" for part in ("background", "backgroundLocal", "border")]
     for team, value in (("ct", recording.killfeed_ct_color), ("t", recording.killfeed_t_color)):
         if not value.strip():
             continue

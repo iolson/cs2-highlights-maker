@@ -115,6 +115,7 @@ lead_out_seconds = 3.0
 # Optional kill-feed team colors (#RRGGBB or #RRGGBBAA); leave out for the game's own.
 killfeed_ct_color = "#00ACE7"
 killfeed_t_color = "#F6CA26"
+killfeed_plain = true   # default: transparent row backgrounds and no red local-player border
 
 # Optional: show custom names (SteamID64 = "name") via HLAE's mirv_replace_name.
 # HLAE only renames "some parts of the HUD"; check the kill feed in-game.

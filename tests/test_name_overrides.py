@@ -71,13 +71,15 @@ def test_killfeed_color_commands_skip_empty_and_invalid():
     from highlights.config import RecordingConfig
     from highlights.recording.sequences import killfeed_color_commands
 
-    assert killfeed_color_commands(RecordingConfig()) == []
-    both = RecordingConfig(killfeed_ct_color="#00ACE7", killfeed_t_color="#F6CA26")
+    plain = [f"mirv_deathmsg colors {p} 0 0 0 0" for p in ("background", "backgroundLocal", "border")]
+    assert killfeed_color_commands(RecordingConfig()) == plain
+    assert killfeed_color_commands(RecordingConfig(killfeed_plain=False)) == []
+    both = RecordingConfig(killfeed_ct_color="#00ACE7", killfeed_t_color="#F6CA26", killfeed_plain=False)
     assert killfeed_color_commands(both) == [
         "mirv_deathmsg colors ct 0 172 231 255",
         "mirv_deathmsg colors t 246 202 38 255",
     ]
-    assert killfeed_color_commands(RecordingConfig(killfeed_ct_color="blue")) == []
+    assert killfeed_color_commands(RecordingConfig(killfeed_ct_color="blue", killfeed_plain=False)) == []
 
 
 def test_actions_file_has_colors_and_no_local_player_highlight(tmp_path):
