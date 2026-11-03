@@ -198,6 +198,17 @@ def _parse_player_names(values: tuple[str, ...]) -> dict[str, str]:
     "POV clip during down time between kills",
 )
 @click.option(
+    "--campath-hold",
+    is_flag=True,
+    help="With --cinematic: keep each cam path's last pose until the clip ends instead of returning to the POV",
+)
+@click.option(
+    "--campath-align",
+    is_flag=True,
+    help="With --cinematic --cinematic-mode splice: also start each cam path late, at the offset that "
+    "sees the player longest (implies --campath-hold)",
+)
+@click.option(
     "--intro-cam",
     default=None,
     callback=lambda ctx, param, value: _parse_cam_styles(value),
@@ -252,6 +263,8 @@ def run(
     cinematic_takes: int,
     cinematic_path: str | None,
     cinematic_mode: str,
+    campath_hold: bool,
+    campath_align: bool,
     intro_cam: list[str] | None,
     downtime_cam: list[str] | None,
     vertical: str | None,
@@ -259,6 +272,10 @@ def run(
     timing_offset: float,
 ) -> None:
     """Parse DEMO, detect highlights, record them in-game and produce an MP4."""
+    if (campath_hold or campath_align) and not cinematic:
+        raise click.UsageError("--campath-hold/--campath-align need --cinematic")
+    if campath_align and cinematic_mode != "splice":
+        raise click.UsageError("--campath-align needs --cinematic-mode splice")
     if vertical_killfeed and vertical != "blur":
         raise click.UsageError("--vertical-killfeed needs --vertical blur")
     if suggest_cinematic and cinematic:
@@ -342,6 +359,8 @@ def run(
             forced=forced,
             place_map=place_map,
             labels=labels,
+            hold=campath_hold or campath_align,
+            align=campath_align,
         )
 
     if intro_cam or downtime_cam:

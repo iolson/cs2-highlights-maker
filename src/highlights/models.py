@@ -143,6 +143,9 @@ class Sequence:
     cinematic_of: int | None = None
     # Clip-second ranges where the cinematic replaces the POV footage (splice mode).
     splice_segments: list[tuple[float, float]] | None = None
+    # --campath-hold/--campath-align: the cam path is started offset_seconds late and holds its
+    # last pose until hold_until_seconds, as {"offset_seconds", "hold_until_seconds"}.
+    campath_retime: dict | None = None
     # Top cam path candidates considered for this play (name, distance, coverage).
     cinematic_candidates: list[dict] | None = None
     # Generated-cam segments (start, end, kind, style) of a --intro-cam/--downtime-cam take.

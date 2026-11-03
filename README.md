@@ -191,6 +191,19 @@ purchased observer pack) and keep them out of git.
    name without extension).
 6. `highlights doctor` shows how many cam paths were found.
 
+Cam paths are often shorter than the play. Two opt-in flags change how a path is timed:
+
+- `--campath-hold` keeps the path's last pose until the clip ends (instead of the view returning to
+  the POV when the path finishes), so a locked-off final shot can cover the rest of the play.
+- `--campath-align` (splice mode only, implies hold) also starts the path late: for each play it
+  tries start offsets in 0.5 s steps (the first pose is held until then) and keeps the one that
+  cuts in longest. The offset is in the JSON as `cinematic.campath_retime`
+  (`offset_seconds`, `hold_until_seconds`).
+
+Both write a retimed copy of the path into `<work_dir>/campaths/` (your files are only read, and
+nothing from them goes into the repo); the held pose is a fixed camera, so it only cuts in while it
+still sees the player. Neither is validated in-game yet.
+
 Before recording anything, `highlights match.dem --suggest-cinematic --json-only`
 previews per clip whether a cinematic is worth it, the best path, how long it
 sees the player, its route, and alternatives. Then pick one with

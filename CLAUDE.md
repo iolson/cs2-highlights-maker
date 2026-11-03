@@ -197,6 +197,13 @@ Set per clip in `build_actions_file`; they deviate from stock CSDM on purpose.
   `beat_targets` stay valid). Camera pose: quaternion wins over Euler
   (`qw/qx/qy/qz` vs `rx/ry/rz`); positive pitch looks down, positive yaw turns
   toward +y; verified that both encodings agree on real pack files.
+- `--campath-hold` / `--campath-align` (`cinematic._plan_path`, `campaths.retime` / `write_retimed`): a
+  sequence's `campath_retime` ({offset_seconds, hold_until_seconds}) makes `build_actions_file` write a
+  shifted/extended copy of the path to `<work>/campaths/<stem>_<start_tick>.campath` and load that
+  (first pose held until the offset, last pose held to the clip end; original only read, planning uses
+  the same `retime` so it matches). Align tries offsets 0, 0.5 s, ... and keeps the longest splice
+  coverage (smallest on ties); it needs splice mode. Plans are computed lazily: the first 3 candidates
+  plus the chosen path. Unvalidated in-game (HLAE behaviour with duplicated keyframes).
 - Commands (`sequences.py`): at `start_tick`, `mirv_campath enabled 1`,
   `load "<abs forward-slash path>"`, `edit start` (no args = rebase the path to
   the current demo time, as observer-pack binds do), then at `end_tick`

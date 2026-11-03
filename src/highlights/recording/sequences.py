@@ -273,7 +273,20 @@ def build_actions_file(
             # current demo time (this is how observer-pack binds use it), so the
             # path plays from the first recorded frame.
             actions.add_exec(sequence.start_tick, "mirv_campath enabled 1")
-            actions.add_exec(sequence.start_tick, f'mirv_campath load "{to_unix_path(sequence.campath)}"')
+            campath_file = sequence.campath
+            if sequence.campath_retime:
+                from highlights.recording.campaths import parse_campath, write_retimed
+
+                original = parse_campath(sequence.campath)
+                if original is None:
+                    raise ValueError(f"Cam path {sequence.campath} cannot be read to retime it")
+                campath_file = write_retimed(
+                    original,
+                    sequence.campath_retime["offset_seconds"],
+                    sequence.campath_retime["hold_until_seconds"],
+                    work_dir / "campaths" / f"{sequence.campath.stem}_{sequence.start_tick}.campath",
+                )
+            actions.add_exec(sequence.start_tick, f'mirv_campath load "{to_unix_path(campath_file)}"')
             actions.add_exec(sequence.start_tick, "mirv_campath edit start")
 
         actions.add_exec(sequence.start_tick, "mirv_streams record start")

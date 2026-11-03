@@ -98,6 +98,46 @@ def parse_campath(file: Path) -> CamPath | None:
     return CamPath(name=file.stem, file=file.resolve(), keyframes=keyframes, duration=keyframes[-1].t)
 
 
+def retime(path: CamPath, offset: float = 0.0, hold_until: float | None = None) -> CamPath:
+    """The path started `offset` seconds late, holding its first pose until then and its
+    last pose until `hold_until` (seconds from the clip start; never shortens the path)."""
+    keys = list(path.keyframes)
+    if offset > 0:
+        first = keys[0]
+        keys = [first, *(Keyframe(k.t + offset, k.pos, k.forward, k.fov) for k in keys)]
+    if hold_until is not None and hold_until > keys[-1].t + 1e-6:
+        last = keys[-1]
+        keys.append(Keyframe(hold_until, last.pos, last.forward, last.fov))
+    return CamPath(name=path.name, file=path.file, keyframes=tuple(keys), duration=keys[-1].t)
+
+
+def write_retimed(path: CamPath, offset: float, hold_until: float | None, out_file: Path) -> Path:
+    """Write a copy of the path's file with the same shift/hold as `retime` (the original is
+    only read). Point attributes are kept verbatim, so poses are exactly the original's."""
+    tree = ET.parse(path.file)
+    points = [p for p in tree.getroot().iter("p") if "t" in p.attrib]
+    parent = {child: parent for parent in tree.getroot().iter() for child in parent}
+    points.sort(key=lambda p: float(p.attrib["t"]))
+    start = float(points[0].attrib["t"])
+    for p in points:
+        p.attrib["t"] = repr(float(p.attrib["t"]) + (offset if offset > 0 else 0.0))
+    container = parent[points[0]]
+    index = list(container).index(points[0])
+    if offset > 0:
+        head = ET.Element("p", dict(points[0].attrib))
+        head.attrib["t"] = repr(start)
+        container.insert(index, head)
+    last = points[-1]
+    end = float(last.attrib["t"]) - start
+    if hold_until is not None and hold_until > end + 1e-6:
+        tail = ET.Element("p", dict(last.attrib))
+        tail.attrib["t"] = repr(start + hold_until)
+        container.insert(list(container).index(last) + 1, tail)
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+    tree.write(out_file, encoding="utf-8", xml_declaration=True)
+    return out_file
+
+
 def pose_at(path: CamPath, t: float) -> tuple[tuple[float, float, float], tuple[float, float, float], float] | None:
     """(position, forward, fov) of the camera t seconds after the path starts, or
     None outside the path. Linear interpolation (HLAE's own curve is smoother)."""

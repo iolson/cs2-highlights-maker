@@ -9,13 +9,14 @@ from rich.markup import escape
 
 from highlights.models import Sequence
 from highlights.places import PlaceMap
-from highlights.recording.campaths import CamPath, path_distance, rank_campaths
+from highlights.recording.campaths import CamPath, path_distance, rank_campaths, retime
 from highlights.recording.path_routes import path_route
 from highlights.recording.splice_plan import MIN_SEGMENT, Point, Trajectory, coverage, plan_splice, position_at
 from highlights.util.log import info, warn
 
 MIN_COVERAGE = MIN_SEGMENT  # seconds a path must cut in for to be used in splice mode: at least one cut
 CANDIDATES_SHOWN = 3
+ALIGN_STEP = 0.5  # seconds between the late-start offsets --campath-align tries
 
 
 def _action_targets(spatial: dict | None) -> list[Point]:
@@ -60,6 +61,32 @@ def _kill_times(sequence: Sequence, tickrate: float) -> list[float]:
     return sorted((t - sequence.start_tick) / tickrate for t in ticks if sequence.start_tick <= t <= sequence.end_tick)
 
 
+def _plan_path(
+    path: CamPath,
+    duration: float,
+    kills: list[float],
+    target_at: Callable[[float], Point | None],
+    hold: bool,
+    align: bool,
+) -> tuple[list[tuple[float, float]], dict | None]:
+    """Splice segments for a path and the retime that produced them (None = path as it is).
+
+    With `align` the late-start offset (0, 0.5 s, ...) giving the most cut-in time wins, the
+    smallest on ties; the path then holds its last pose to the clip's end. `hold` alone keeps
+    the start and only sustains the last pose."""
+    if not (hold or align):
+        return plan_splice(duration, path, kills, target_at), None
+    offsets = [i * ALIGN_STEP for i in range(int(max(0.0, duration - MIN_SEGMENT) / ALIGN_STEP) + 1)] if align else [0.0]
+    best: tuple[float, list[tuple[float, float]], float] | None = None
+    for offset in offsets:
+        segments = plan_splice(duration, retime(path, offset, duration), kills, target_at)
+        cover = coverage(segments)
+        if best is None or cover > best[0] + 1e-9:
+            best = (cover, segments, offset)
+    assert best is not None
+    return best[1], {"offset_seconds": best[2], "hold_until_seconds": round(duration, 2)}
+
+
 def _describe(candidates: list[dict]) -> str:
     parts = []
     for c in candidates:
@@ -81,6 +108,8 @@ def add_cinematic_sequences(
     place_map: PlaceMap | None = None,
     labels: dict[str, str] | None = None,
     quiet: bool = False,
+    hold: bool = False,
+    align: bool = False,
 ) -> tuple[list[Sequence], dict[int, dict]]:
     """Follow each POV sequence with cinematic re-recordings of the same ticks.
 
@@ -89,7 +118,9 @@ def add_cinematic_sequences(
     least MIN_COVERAGE seconds of down time (its plan is stored in
     `splice_segments`); plays no path can cover are left POV-only. `forced` skips
     the ranking and uses that path for every play (splice mode still needs it to
-    cover something). `quiet` suppresses all of its console output.
+    cover something). `quiet` suppresses all of its console output. `hold` sustains the
+    path's last pose to the end of the clip; `align` (splice mode) also tries starting the
+    path late and keeps the offset that cuts in longest (see `_plan_path`).
 
     Returns the interleaved list renumbered 1..N and the spatial metadata re-keyed
     to the new numbers.
@@ -142,7 +173,7 @@ def add_cinematic_sequences(
             shown = [candidate(path, None) for path in ranked[: max(takes, CANDIDATES_SHOWN)]]
             say("info", escape(f"{sequence.label}{route_note}: cinematic candidates — {_describe(shown)}"))
             for path in ranked[:takes]:
-                if path.duration < sequence.duration_seconds(tickrate):
+                if path.duration < sequence.duration_seconds(tickrate) and not hold:
                     say(
                         "warn",
                         f"{sequence.label}: cam path {path.name} runs {path.duration:.0f}s, shorter "
@@ -155,19 +186,33 @@ def add_cinematic_sequences(
                     campath=path.file,
                     cinematic_of=pov_number,
                     cinematic_candidates=shown,
+                    campath_retime=(
+                        {"offset_seconds": 0.0, "hold_until_seconds": round(sequence.duration_seconds(tickrate), 2)}
+                        if hold
+                        else None
+                    ),
                 )
             continue
 
         target_at = _target_at(sequence, source or {}, tickrate)
         kills = _kill_times(sequence, tickrate)
         duration = sequence.duration_seconds(tickrate)
-        plans = [(path, plan_splice(duration, path, kills, target_at)) for path in ranked]
         threshold = 1e-9 if forced else MIN_COVERAGE
-        chosen = next(((p, segs) for p, segs in plans if coverage(segs) >= threshold), None)
+        # Plan lazily: only the shown candidates and the chosen path are needed (the search
+        # over start offsets makes each plan far more expensive).
+        plans: list[tuple[CamPath, list[tuple[float, float]], dict | None]] = []
+        chosen = None
+        for ranked_path in ranked:
+            if chosen is not None and len(plans) >= CANDIDATES_SHOWN:
+                break
+            segs, shift = _plan_path(ranked_path, duration, kills, target_at, hold, align)
+            plans.append((ranked_path, segs, shift))
+            if chosen is None and coverage(segs) >= threshold:
+                chosen = plans[-1]
         shown_plans = plans[:CANDIDATES_SHOWN]
         if chosen and chosen not in shown_plans:
             shown_plans = [*shown_plans, chosen]
-        shown = [candidate(p, round(coverage(segs), 1)) for p, segs in shown_plans]
+        shown = [candidate(p, round(coverage(segs), 1)) for p, segs, _ in shown_plans]
         if chosen is None:
             say(
                 "warn",
@@ -175,7 +220,7 @@ def add_cinematic_sequences(
                 f"POV only — closest were {_describe(shown)}",
             )
             continue
-        path, segments = chosen
+        path, segments, shift = chosen
         say("info", escape(f"{sequence.label}{route_note}: cinematic {path.name} — candidates: {_describe(shown)}"))
         append(
             sequence,
@@ -185,5 +230,6 @@ def add_cinematic_sequences(
             cinematic_of=pov_number,
             splice_segments=segments,
             cinematic_candidates=shown,
+            campath_retime=shift,
         )
     return result, spatial
