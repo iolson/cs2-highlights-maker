@@ -15,6 +15,7 @@ from pathlib import Path
 from rich.markup import escape
 from rich.table import Table
 
+from highlights.analysis.slowmo import remap
 from highlights.demo.parser import DemoData
 from highlights.models import Moment, Sequence
 from highlights.spatial import build_spatial_metadata
@@ -167,6 +168,7 @@ def write_report(
             "end_tick": s.end_tick,
             "duration_seconds": round(s.duration_seconds(demo.tickrate), 1),
             "clip_filename": f"clip_{s.number:02d}.mp4",
+            "slowmo": s.slowmo,
             "cinematic": (
                 {
                     "campath": s.campath.name,
@@ -268,10 +270,12 @@ def finalize_report(
         sequence["video_start_seconds"] = round(position, 3)
         kills = [e for e in sequence["events"] if e["type"] == "kill"]
         pov_kills = [e for e in kills if e["is_pov_kill"] and e["is_selected_moment_kill"]]
+        slowmo = sequence.get("slowmo")
         for event in kills:
-            event["video_time_seconds"] = round(
-                position + event["seconds_from_clip_start"] + offset_seconds, 3
-            )
+            clip_time = event["seconds_from_clip_start"]
+            if slowmo:
+                clip_time = remap(clip_time, slowmo["start_seconds"], slowmo["end_seconds"], slowmo["speed"])
+            event["video_time_seconds"] = round(position + clip_time + offset_seconds, 3)
         for index, event in enumerate(pov_kills, 1):
             beat_targets.append({
                 "video_time_seconds": event["video_time_seconds"],
@@ -318,6 +322,9 @@ def print_sequences_table(
         table.add_column("Where")
     table.add_column("Score")
     table.add_column("Length")
+    show_slowmo = any(s.slowmo for s in sequences)
+    if show_slowmo:
+        table.add_column("Slow-mo")
     table.add_column("Ticks", justify="right")
     for s in sequences:
         row = [
@@ -330,8 +337,10 @@ def print_sequences_table(
         row += [
             f"{s.score:.1f}",
             f"{s.duration_seconds(demo.tickrate):.0f}s",
-            f"{s.start_tick}-{s.end_tick}",
         ]
+        if show_slowmo:
+            row.append(f"{s.slowmo['reason']} → {s.slowmo['victim']}" if s.slowmo else "")
+        row.append(f"{s.start_tick}-{s.end_tick}")
         table.add_row(*row)
     console.print(table)
 
@@ -382,7 +391,7 @@ def print_suggestions_table(demo: DemoData, sequences: list[Sequence], suggestio
     console.print(table)
 
 
-def print_top_table(rows: list[tuple[DemoData, Moment]]) -> None:
+def print_top_table(rows: list[tuple[DemoData, Moment]], slowmo: list[str] | None = None) -> None:
     demo_count = len({str(demo.path) for demo, _ in rows})
     table = Table(title=f"Top highlights across {demo_count} demos")
     table.add_column("#", justify="right")
@@ -392,6 +401,8 @@ def print_top_table(rows: list[tuple[DemoData, Moment]]) -> None:
     table.add_column("Player")
     table.add_column("Highlight")
     table.add_column("Score")
+    if slowmo is not None:
+        table.add_column("Slow-mo")
     for index, (demo, moment) in enumerate(rows, 1):
         name = demo.path.stem
         if len(name) > 24:
@@ -404,5 +415,6 @@ def print_top_table(rows: list[tuple[DemoData, Moment]]) -> None:
             moment.name,
             moment.describe(),
             f"{moment.score:.1f}",
+            *([slowmo[index - 1]] if slowmo is not None else []),
         )
     console.print(table)

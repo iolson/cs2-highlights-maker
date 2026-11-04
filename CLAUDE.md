@@ -78,6 +78,12 @@ the `run` subcommand. Entry point `highlights.cli:main`.
 - `routes.py` — `clip_route(sequence, spatial)`: the places the POV player moves through
   (from the place hints already sampled in spatial metadata) and where each selected kill
   landed; stored as `spatial.route` and shown as the "Where" column of the highlights table.
+- `analysis/slowmo.py` + `video/slowmo.py` — `--slow-mode auto` on `run` and `top`: `best_kill` picks a
+  moment's most slow-mo-worthy kill (`KILL_WORTH`, 4K/ace/clutch finishers, `MIN_WORTH`), `choose` keeps the
+  best `MAX_FRACTION` (a third, rounded up), `plan_sequences` stores `Sequence.slowmo` on POV sequences
+  (window `LEAD`/`TAIL` around the kill, `SPEED` 0.4; drops the lowest-worth beats to fit `--max-duration`).
+  `cli._apply_slowmo` retimes the window with FFmpeg after splice, before concat; `finalize_report` remaps
+  event/beat times through it (`slowmo.remap`). Constant speed, no frame interpolation, no ramp.
 - `video/vertical.py` — `--vertical blur|crop` (+ `--vertical-killfeed`): final 1080x1920 copy
   `<output>-vertical.mp4` via one FFmpeg filter pass after the concat (kill-feed crop region constants
   assume the default top-right position).

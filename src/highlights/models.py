@@ -146,6 +146,9 @@ class Sequence:
     # --campath-hold/--campath-align: the cam path is started offset_seconds late and holds its
     # last pose until hold_until_seconds, as {"offset_seconds", "hold_until_seconds"}.
     campath_retime: dict | None = None
+    # --slow-mode auto: the slow-motion beat, {"kill_tick", "start_seconds", "end_seconds", "speed",
+    # "worth", "reason", "victim"} (clip seconds); applied to the finished POV clip.
+    slowmo: dict | None = None
     # Top cam path candidates considered for this play (name, distance, coverage).
     cinematic_candidates: list[dict] | None = None
     # Generated-cam segments (start, end, kind, style) of a --intro-cam/--downtime-cam take.

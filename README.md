@@ -14,6 +14,7 @@ highlights match.dem --cinematic --cinematic-mode splice   # cut the cinematic i
 highlights match.dem --intro-cam face     # open each clip with a generated face cam that eases into the POV
 highlights match.dem --downtime-cam random   # cut generated cams into down time between kills
 highlights match.dem --vertical blur --vertical-killfeed --max-duration 55   # also a 1080x1920 Shorts/Reels version
+highlights match.dem --slow-mode auto     # slow-motion beat on the clips whose kill is most worth it
 highlights doctor                         # environment check
 highlights update-tools                   # re-download latest HLAE/FFmpeg
 ```
@@ -249,6 +250,23 @@ indoors), so review each run. The offsets are estimates, tuned in
 `src/highlights/recording/dyncams.py`. Not validated in-game yet: that the observed
 player's model is drawn while a cam path is active, the cam path fov value, and the
 hand-off to the POV.
+
+## Slow-motion (`--slow-mode auto`)
+
+`highlights top a.dem b.dem --slow-mode auto` adds a "Slow-mo" column showing which clips would
+get a slow-motion beat and on which kill (for example `kill 4/4: 4K finish`); `run` uses the same
+decision and records it in the JSON as `slowmo` per sequence (`--json-only` previews it).
+
+- A kill qualifies as the last kill of a 4K or ace, the last kill of a won clutch, or a knife,
+  zeus, AWP noscope, blind, through-smoke or wallbang kill (plain kills and headshots do not
+  qualify on their own). Each clip gets at most one beat, on its best kill.
+- Only the best third of the clips (rounded up) are slowed, so it stays special; with nothing
+  qualifying nothing is slowed.
+- The beat runs 0.7 s before to 1.1 s after the kill at 0.4x, retimed with FFmpeg on the finished
+  clip (audio slowed too). Cinematic takes are cut into their POV clip first, so they are
+  unaffected. The clip gets about 2.7 s longer; `--max-duration` counts that (the lowest-worth
+  beats are dropped first when it would not fit), and the report's `video_time_seconds` and
+  `beat_targets` include the retime.
 
 ## Vertical version (`--vertical`)
 

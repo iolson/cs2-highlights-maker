@@ -198,6 +198,13 @@ def _parse_player_names(values: tuple[str, ...]) -> dict[str, str]:
     "POV clip during down time between kills",
 )
 @click.option(
+    "--slow-mode",
+    type=click.Choice(["off", "auto"]),
+    default="off",
+    help="auto: give the clips whose kill is most worth it (4K/ace finish, clutch finish, knife, noscope, "
+    "wallbang...) a short slow-motion beat; most clips get none",
+)
+@click.option(
     "--campath-hold",
     is_flag=True,
     help="With --cinematic: keep each cam path's last pose until the clip ends instead of returning to the POV",
@@ -263,6 +270,7 @@ def run(
     cinematic_takes: int,
     cinematic_path: str | None,
     cinematic_mode: str,
+    slow_mode: str,
     campath_hold: bool,
     campath_align: bool,
     intro_cam: list[str] | None,
@@ -377,6 +385,13 @@ def run(
             downtime_cam,
         )
 
+    if slow_mode == "auto":
+        from highlights.analysis.slowmo import plan_sequences
+
+        sequences = plan_sequences(sequences, parsed.tickrate, config.selection.max_duration)
+        planned = sum(1 for s in sequences if s.slowmo)
+        info(f"Slow-motion: {planned} of {sum(1 for s in sequences if s.cinematic_of is None)} clips")
+
     print_sequences_table(parsed, sequences, spatial)
     if suggestions is not None:
         print_suggestions_table(parsed, sequences, suggestions)
@@ -407,6 +422,8 @@ def run(
         recorded = [(o, process_clip(tools.ffmpeg_exe, o, work_dir / "clips", overlays)) for o in outputs]
         if any(o.sequence.splice_segments for o, _ in recorded):
             recorded = _splice_cinematics(tools.ffmpeg_exe, recorded, work_dir / "clips", config.recording.crf)
+        if any(o.sequence.slowmo for o, _ in recorded):
+            recorded = _apply_slowmo(tools.ffmpeg_exe, recorded, work_dir / "clips", config.recording.crf)
         outputs = [o for o, _ in recorded]
         clips = [c for _, c in recorded]
         if transitions == "fade":
@@ -443,6 +460,27 @@ def run(
         f"[green]Done:[/green] {output} "
         f"({len(clips)} clips, {total:.0f}s of highlights, took {elapsed}s)"
     )
+
+
+def _apply_slowmo(ffmpeg_exe: Path, recorded: list, clips_dir: Path, crf: int) -> list:
+    """Slow the planned window of each POV clip that has one."""
+    from highlights.video.slowmo import slow_clip
+
+    result = []
+    for output, clip in recorded:
+        plan = output.sequence.slowmo
+        if plan:
+            clip = slow_clip(
+                ffmpeg_exe,
+                clip,
+                clips_dir / f"slow_{output.sequence.number:02d}.mp4",
+                plan["start_seconds"],
+                plan["end_seconds"],
+                plan["speed"],
+                crf,
+            )
+        result.append((output, clip))
+    return result
 
 
 def _splice_cinematics(ffmpeg_exe: Path, recorded: list, clips_dir: Path, crf: int) -> list:
@@ -488,6 +526,12 @@ def _splice_cinematics(ffmpeg_exe: Path, recorded: list, clips_dir: Path, crf: i
 @click.option("--top", type=int, default=None, help="Max number of highlights")
 @click.option("--max-duration", type=float, default=None, help="Max total video length, seconds")
 @click.option("--min-kills", type=int, default=None, help="Min kills for a moment to qualify")
+@click.option(
+    "--slow-mode",
+    type=click.Choice(["off", "auto"]),
+    default="off",
+    help="auto: also show which of these clips would get a slow-motion beat, and on which kill",
+)
 def top(
     demos: tuple[Path, ...],
     player: str | None,
@@ -495,6 +539,7 @@ def top(
     top: int | None,
     max_duration: float | None,
     min_kills: int | None,
+    slow_mode: str,
 ) -> None:
     """Rank highlights across several DEMOs and print one table (no recording)."""
     config = load_config()
@@ -565,7 +610,19 @@ def top(
             "No highlights matched the criteria — try --min-kills 1 or check the demos"
         )
 
-    print_top_table(rows)
+    slowmo_cells = None
+    if slow_mode == "auto":
+        from highlights.analysis.slowmo import best_kill, choose
+
+        picks = choose([best_kill(moment) for _, moment in rows])
+        slowmo_cells = [
+            "" if pick is None else f"kill {sorted(k.tick for k in moment.kills).index(pick.kill.tick) + 1}/"
+            f"{moment.kill_count}: {pick.reason}"
+            for (_, moment), pick in zip(rows, picks)
+        ]
+    print_top_table(rows, slowmo_cells)
+    if slowmo_cells is not None:
+        info(f"Slow-motion for {sum(1 for c in slowmo_cells if c)} of {len(rows)} clips")
     if config.selection.max_duration > 0:
         info(f"{len(rows)} clips, about {total_seconds:.0f}s of {config.selection.max_duration:.0f}s")
 
