@@ -49,6 +49,29 @@ def clip_seconds(moment: Moment, demo: DemoData, recording: RecordingConfig) -> 
     return (end - start) / demo.tickrate
 
 
+def pick_rows(
+    rows: list[tuple[DemoData, Moment]],
+    selection: SelectionConfig,
+    recording: RecordingConfig,
+) -> tuple[list[tuple[DemoData, Moment]], float]:
+    """Best-first pick from moments pooled over several demos, honoring `top` and `max_duration`.
+
+    A clip that would overrun the duration budget is skipped so shorter ones can still fit.
+    Returns the picked rows (best first) and their summed clip length."""
+    ranked = sorted(rows, key=lambda row: row[1].score, reverse=True)
+    picked: list[tuple[DemoData, Moment]] = []
+    total = 0.0
+    for demo, moment in ranked:
+        if selection.top > 0 and len(picked) >= selection.top:
+            break
+        seconds = clip_seconds(moment, demo, recording)
+        if selection.max_duration > 0 and total + seconds > selection.max_duration:
+            continue
+        picked.append((demo, moment))
+        total += seconds
+    return picked, total
+
+
 def select_sequences(
     moments: list[Moment],
     demo: DemoData,
@@ -57,20 +80,19 @@ def select_sequences(
     player_steamids: Collection[str] | None = None,
 ) -> list[Sequence]:
     candidates = eligible_moments(moments, selection, player_steamids)
-    candidates.sort(key=lambda m: m.score, reverse=True)
+    picked = [moment for _, moment in pick_rows([(demo, m) for m in candidates], selection, recording)[0]]
+    return build_sequences(picked, demo, selection, recording)
 
-    picked: list[Moment] = []
-    total_seconds = 0.0
-    for moment in candidates:
-        if selection.top > 0 and len(picked) >= selection.top:
-            break
-        start, end = _clip_bounds(moment, demo, recording)
-        duration = (end - start) / demo.tickrate
-        if selection.max_duration > 0 and total_seconds + duration > selection.max_duration:
-            continue
-        picked.append(moment)
-        total_seconds += duration
 
+def build_sequences(
+    picked: list[Moment],
+    demo: DemoData,
+    selection: SelectionConfig,
+    recording: RecordingConfig,
+    merge: bool = True,
+) -> list[Sequence]:
+    """Sequences for the picked moments, in tick order. Overlapping or nearly touching moments
+    become one sequence with camera switches unless `merge` is off (one sequence per moment)."""
     picked.sort(key=lambda m: m.first_tick)
 
     # Merge moments whose clips overlap or nearly touch into a single sequence
@@ -80,7 +102,7 @@ def select_sequences(
     group_end = -1
     for moment in picked:
         start, end = _clip_bounds(moment, demo, recording)
-        if groups and start <= group_end + merge_gap_ticks:
+        if merge and groups and start <= group_end + merge_gap_ticks:
             groups[-1].append(moment)
             group_end = max(group_end, end)
         else:

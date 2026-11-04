@@ -16,7 +16,7 @@ from highlights import __version__
 from highlights.analysis.clutch import attach_clutches, detect_clutches
 from highlights.analysis.moments import cluster_moments
 from highlights.analysis.scoring import score_moments
-from highlights.analysis.selection import clip_seconds, eligible_moments, select_sequences
+from highlights.analysis.selection import eligible_moments, pick_rows, select_sequences
 from highlights.config import Config, load_config
 from highlights.demo.parser import DemoData, DemoParseError, ensure_dem_file, parse_demo
 from highlights.demo.players import PlayerNotFound, resolve_players
@@ -586,20 +586,7 @@ def top(
     if failed == len(demos):
         raise click.ClickException("None of the demos could be read")
 
-    rows.sort(key=lambda row: row[1].score, reverse=True)
-    total_seconds = 0.0
-    if config.selection.top > 0 or config.selection.max_duration > 0:
-        # Best first; a clip that would overrun the budget is skipped so shorter ones can still fit.
-        picked = []
-        for demo, moment in rows:
-            if config.selection.top > 0 and len(picked) >= config.selection.top:
-                break
-            seconds = clip_seconds(moment, demo, config.recording)
-            if config.selection.max_duration > 0 and total_seconds + seconds > config.selection.max_duration:
-                continue
-            picked.append((demo, moment))
-            total_seconds += seconds
-        rows = picked
+    rows, total_seconds = pick_rows(rows, config.selection, config.recording)
 
     if not rows:
         if config.selection.max_duration > 0:
@@ -625,6 +612,181 @@ def top(
         info(f"Slow-motion for {sum(1 for c in slowmo_cells if c)} of {len(rows)} clips")
     if config.selection.max_duration > 0:
         info(f"{len(rows)} clips, about {total_seconds:.0f}s of {config.selection.max_duration:.0f}s")
+
+
+@main.command()
+@click.argument("demos", nargs=-1, required=True, metavar="DEMO...")
+@click.option(
+    "--players",
+    "players",
+    multiple=True,
+    help="Only these players' highlights: comma-separated and/or repeated (steamid64 or name); "
+    "players missing from a demo are fine. Without --players/--team everyone is eligible",
+)
+@click.option(
+    "--team",
+    "teams",
+    multiple=True,
+    help="Add every player of this team from --names-file (repeatable)",
+)
+@click.option(
+    "--names-file",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    default=None,
+    help="A names.json with steamid64 -> {name, team} (the lanchamp-cotw format), used by --team",
+)
+@click.option("--top", type=int, default=None, help="How many clips in total, best first across all demos")
+@click.option("--max-duration", type=float, default=None, help="Max summed clip length, seconds")
+@click.option("--min-kills", type=int, default=None, help="Min kills for a moment to qualify")
+@click.option(
+    "-o",
+    "--output-dir",
+    type=click.Path(file_okay=False, path_type=Path),
+    default=Path("highlights-out"),
+    show_default=True,
+    help="Where <label>-<player>-<n>.mp4 and .json are written",
+)
+@click.option("--fps", type=int, default=None, help="Recording framerate")
+@click.option("--width", type=int, default=None, help="Recording width")
+@click.option("--height", type=int, default=None, help="Recording height")
+@click.option("--crf", type=int, default=None, help="x264 CRF for recorded clips")
+@click.option(
+    "--player-name",
+    "player_names",
+    multiple=True,
+    metavar="STEAMID=NAME",
+    help="Rename a player in the recording (steamid64=Display Name); repeatable, overrides config.toml",
+)
+@click.option(
+    "--cmd",
+    "extra_commands",
+    multiple=True,
+    metavar="COMMAND",
+    help="Extra console command run at every clip's start (repeatable)",
+)
+@click.option("--cinematic", is_flag=True, help="Cut your cam paths into each clip (splice mode)")
+@click.option("--cinematic-path", default=None, help="Use this cam path for every clip instead of matching")
+@click.option("--campath-hold", is_flag=True, help="Keep each cam path's last pose until the clip ends")
+@click.option("--campath-align", is_flag=True, help="Also start each cam path late, where it sees the player longest")
+@click.option(
+    "--intro-cam",
+    default=None,
+    callback=lambda ctx, param, value: _parse_cam_styles(value),
+    help="Open every clip with a generated cam: face, profile, gun, tps, heli, a list, or random",
+)
+@click.option(
+    "--downtime-cam",
+    default=None,
+    callback=lambda ctx, param, value: _parse_cam_styles(value),
+    help="Cut a generated cam into the down time between kills (same styles as --intro-cam)",
+)
+@click.option("--json-only", is_flag=True, help="Select and plan only: print the table, write the JSON files, record nothing")
+@click.option("--keep-clips", is_flag=True, help="Keep each demo's work dir with the raw clips")
+@click.option("--timing-offset", type=float, default=0.0, help="Seconds added to kill times in the reports")
+def batch(
+    demos: tuple[str, ...],
+    players: tuple[str, ...],
+    teams: tuple[str, ...],
+    names_file: Path | None,
+    top: int | None,
+    max_duration: float | None,
+    min_kills: int | None,
+    output_dir: Path,
+    fps: int | None,
+    width: int | None,
+    height: int | None,
+    crf: int | None,
+    player_names: tuple[str, ...],
+    extra_commands: tuple[str, ...],
+    cinematic: bool,
+    cinematic_path: str | None,
+    campath_hold: bool,
+    campath_align: bool,
+    intro_cam: list[str] | None,
+    downtime_cam: list[str] | None,
+    json_only: bool,
+    keep_clips: bool,
+    timing_offset: float,
+) -> None:
+    """One clip + JSON per highlight across DEMOs, for a separate compilation step.
+
+    DEMO is PATH or LABEL=PATH (the label names the files). The best --top moments of all
+    demos (optionally only the given players) are picked, then every demo is recorded once
+    and each moment is written as <label>-<player>-<n>.mp4 with its own .json report.
+    """
+    from highlights.batch import DemoJob, parse_demo_arg, run_batch, team_steamids
+
+    if teams and names_file is None:
+        raise click.UsageError("--team needs --names-file")
+    if (campath_hold or campath_align or cinematic_path) and not cinematic:
+        raise click.UsageError("--campath-hold/--campath-align/--cinematic-path need --cinematic")
+    config = load_config()
+    for section, name, value in (
+        (config.selection, "top", top),
+        (config.selection, "max_duration", max_duration),
+        (config.selection, "min_kills", min_kills),
+        (config.recording, "fps", fps),
+        (config.recording, "width", width),
+        (config.recording, "height", height),
+        (config.recording, "crf", crf),
+    ):
+        if value is not None:
+            setattr(section, name, value)
+    config.recording.player_names.update(_parse_player_names(player_names))
+    config.recording.extra_commands = [*config.recording.extra_commands, *extra_commands]
+
+    team_ids: set[str] = set()
+    if teams:
+        team_ids = team_steamids(names_file, list(teams))
+        info(f"Team filter: {len(team_ids)} player(s) from {names_file.name} for {', '.join(teams)}")
+        if not team_ids:
+            raise click.ClickException(f"No player in {names_file} has team {', '.join(teams)}")
+
+    jobs = []
+    seen: set[str] = set()
+    for value in demos:
+        label, path = parse_demo_arg(value)
+        if not path.is_file():
+            raise click.UsageError(f"Demo not found: {path}")
+        if label in seen:
+            raise click.UsageError(f"Two demos share the label {label!r}; name them LABEL=PATH")
+        seen.add(label)
+        work_dir = _resolve_work_dir(config, path)
+        work_dir.mkdir(parents=True, exist_ok=True)
+        with console.status(f"Parsing {label}..."):
+            try:
+                parsed = parse_demo(ensure_dem_file(path, work_dir))
+            except DemoParseError as exc:
+                warn(f"{label}: {exc} — skipping this demo")
+                continue
+        info(f"Parsed [bold]{label}[/bold] ({parsed.map_name}): {len(parsed.rounds)} rounds, {len(parsed.kills)} kills")
+        jobs.append(DemoJob(label, path, parsed, work_dir))
+    if not jobs:
+        raise click.ClickException("None of the demos could be read")
+
+    started = time.monotonic()
+    written = run_batch(
+        jobs,
+        config,
+        [*players],
+        team_ids,
+        output_dir,
+        json_only=json_only,
+        keep_clips=keep_clips,
+        timing_offset=timing_offset,
+        cinematic=cinematic,
+        cinematic_path=cinematic_path,
+        hold=campath_hold or campath_align,
+        align=campath_align,
+        intro_cam=intro_cam,
+        downtime_cam=downtime_cam,
+    )
+    if json_only:
+        console.print(f"[green]Planned:[/green] reports written to {output_dir}")
+    else:
+        console.print(
+            f"[green]Done:[/green] {len(written)} clip(s) in {output_dir} (took {int(time.monotonic() - started)}s)"
+        )
 
 
 @main.group(name="places")

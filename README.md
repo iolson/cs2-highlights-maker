@@ -32,6 +32,32 @@ highlights top *.dem --players Alice,Bob --max-duration 247   # best clips that 
 This only prints a ranked table (no JSON report, no recording). `--max-duration SECONDS` keeps the best
 clips whose lengths add up to at most that total (a clip that would overrun is skipped, shorter ones can still fit).
 
+### One clip per highlight across demos (`batch`)
+
+For a separate compilation step (for example lanchamp-cotw), `highlights batch` turns the best
+moments of several demos into individual files:
+
+```
+highlights batch season59-match07=a.dem season59-match08=b.dem \
+  --players "FreeDotWilly,FuzzyHat,GUNK,NoSwear" --top 15 \
+  --cinematic --campath-align --intro-cam random --downtime-cam random --fps 120 -o out/
+```
+
+- `DEMO` is `PATH` or `LABEL=PATH`; the label names the files (default: the file name).
+- `--top N` is global: the N best moments of all demos together, optionally only for `--players`
+  (or `--team Saltcrew --names-file names.json`, the lanchamp-cotw file, to take a team's players).
+  Players missing from a demo are fine; a demo with none of them is skipped. With no filter
+  everyone is eligible. `--max-duration` also works.
+- Each moment becomes `<label>-<player>-<n>.mp4` plus a `.json` in `-o` (default `highlights-out/`):
+  `n` counts that player's picked clips in that demo, best first. The JSON is the same report a
+  single-clip `run` writes (sequence 1, `beat_targets`, `cinematic.*`). There is no combined video.
+- Each moment is its own isolated clip (never merged with another), with its cinematic cam path
+  (splice mode), generated intro/down-time cams, kill-feed settings and `--cmd` commands.
+  Slow-motion is not part of it (leave it to the compilation step; use `--fps 120` for that).
+- Selection is global but recording is one game session per demo. A demo that fails to record is
+  skipped with a warning and the rest continue. `--json-only` prints the table and writes the
+  JSONs without recording.
+
 ### Place names
 
 Teach the tool where plays happen on each map:

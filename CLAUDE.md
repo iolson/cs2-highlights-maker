@@ -84,6 +84,12 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   (window `LEAD`/`TAIL` around the kill, `SPEED` 0.4; drops the lowest-worth beats to fit `--max-duration`).
   `cli._apply_slowmo` retimes the window with FFmpeg after splice, before concat; `finalize_report` remaps
   event/beat times through it (`slowmo.remap`). Constant speed, no frame interpolation, no ramp.
+- `batch.py` — `highlights batch DEMO... [--players/--team --names-file] --top N -o DIR`: global best-N
+  (`selection.pick_rows`, shared with `top`) over all demos, one isolated sequence per moment
+  (`build_sequences(..., merge=False)`), cinematic (always splice) + generated cams per demo, ONE
+  recording session per demo (`record`), then each POV clip is copied to `<label>-<player slug>-<n>.mp4` and
+  its group (POV + takes, renumbered 1..k) gets `<name>.json` via `write_report`/`finalize_report`.
+  Player filter is lenient (absent players ignored, `present_players`). No slow-mo (cotw does it, needs 120 fps).
 - `video/vertical.py` — `--vertical blur|crop` (+ `--vertical-killfeed`): final 1080x1920 copy
   `<output>-vertical.mp4` via one FFmpeg filter pass after the concat (kill-feed crop region constants
   assume the default top-right position).

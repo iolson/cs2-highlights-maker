@@ -391,7 +391,12 @@ def print_suggestions_table(demo: DemoData, sequences: list[Sequence], suggestio
     console.print(table)
 
 
-def print_top_table(rows: list[tuple[DemoData, Moment]], slowmo: list[str] | None = None) -> None:
+def print_top_table(
+    rows: list[tuple[DemoData, Moment]],
+    slowmo: list[str] | None = None,
+    clips: list[str] | None = None,
+    labels: list[str] | None = None,
+) -> None:
     demo_count = len({str(demo.path) for demo, _ in rows})
     table = Table(title=f"Top highlights across {demo_count} demos")
     table.add_column("#", justify="right")
@@ -403,8 +408,10 @@ def print_top_table(rows: list[tuple[DemoData, Moment]], slowmo: list[str] | Non
     table.add_column("Score")
     if slowmo is not None:
         table.add_column("Slow-mo")
+    if clips is not None:
+        table.add_column("Clip")
     for index, (demo, moment) in enumerate(rows, 1):
-        name = demo.path.stem
+        name = labels[index - 1] if labels is not None else demo.path.stem
         if len(name) > 24:
             name = name[:23] + "…"
         table.add_row(
@@ -416,5 +423,6 @@ def print_top_table(rows: list[tuple[DemoData, Moment]], slowmo: list[str] | Non
             moment.describe(),
             f"{moment.score:.1f}",
             *([slowmo[index - 1]] if slowmo is not None else []),
+            *([clips[index - 1]] if clips is not None else []),
         )
     console.print(table)
