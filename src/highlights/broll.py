@@ -16,6 +16,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from highlights.analysis.selection import MIN_SAFE_TICK
 from highlights.config import Config
 from highlights.demo.parser import DemoData
 from highlights.models import CameraAction, Sequence
@@ -115,39 +116,108 @@ def plan_demo_broll(
         raise ValueError(f"mode must be one of {MODES}")
     rng = random.Random(seed)
     tickrate = demo.tickrate
-    usable = [p for p in paths if min(p.duration, max_length) >= MIN_LENGTH]
     rounds = [r for r in demo.rounds if (r.end_tick - r.freeze_end_tick) / tickrate >= ROUND_LEAD + MIN_LENGTH]
-    if not usable or not rounds:
-        return []
     rng.shuffle(rounds)
-    rounds = rounds[: max(3, count * 2)]
+    windows = {r.index: (r.index, r.freeze_end_tick + int(ROUND_LEAD * tickrate), r.end_tick) for r in rounds[: max(3, count * 2)]}
+    snapshots = _sample_windows(demo, windows, sampler)
+    return sorted(_search(rng, demo, paths, mode, count, max_length, windows, snapshots), key=lambda s: s.start_tick)
 
-    # One query serves every candidate: the round's live phase on the sampling grid.
-    step_ticks = max(1, round(SAMPLE_STEP * tickrate))
-    live = {r.index: range(r.freeze_end_tick + int(ROUND_LEAD * tickrate), r.end_tick, step_ticks) for r in rounds}
-    snapshots = sampler(demo, sorted({tick for ticks in live.values() for tick in ticks}))
-    if not snapshots:
+
+def plan_buildups(
+    demo: DemoData,
+    paths: list[CamPath],
+    mode: str,
+    targets: dict,
+    max_length: float,
+    seed: int | None = None,
+    sampler: Sampler = sample_players,
+) -> dict:
+    """One shot per target, {key: (round index, clip start tick)}, taken from the same round before the
+    clip starts (freeze time included), ending as close to the clip start as the mode allows.
+    Targets without a fitting window are left out."""
+    if mode not in MODES:
+        raise ValueError(f"mode must be one of {MODES}")
+    rng = random.Random(seed)
+    windows = {}
+    for key, (round_index, before_tick) in targets.items():
+        round_ = demo.round_at(round_index)
+        if round_ is not None:
+            windows[key] = (round_index, max(round_.start_tick, MIN_SAFE_TICK), before_tick)
+    snapshots = _sample_windows(demo, windows, sampler)
+    tickrate = demo.tickrate
+    step = max(1, round(SAMPLE_STEP * tickrate))
+    margin = EMPTY_MARGIN if mode == "empty" else VIEW_MARGIN
+    usable = [p for p in paths if min(p.duration, max_length) >= MIN_LENGTH]
+    result = {}
+    for key, (round_index, first, end_limit) in windows.items():
+        # Latest windows first, so the shot runs straight into the play; paths in random order.
+        order = usable[:]
+        rng.shuffle(order)
+        found = None
+        for end_tick in range(end_limit, first, -step):
+            for path in order:
+                seconds = min(path.duration, max_length, (end_tick - first) / tickrate)
+                if seconds < MIN_LENGTH:
+                    continue
+                start_tick = end_tick - int(seconds * tickrate)
+                start_tick = first + (start_tick - first) // step * step  # stay on the sampling grid
+                evaluated = _evaluate(path, seconds, start_tick, tickrate, snapshots, margin)
+                if evaluated is None:
+                    continue
+                presence, visible, anchor = evaluated
+                if (mode == "empty" and presence > 0) or (mode == "players" and presence < MIN_PRESENCE):
+                    continue
+                found = BrollShot(round_index, path, start_tick, start_tick + int(seconds * tickrate), seconds, presence, visible, anchor)
+                break
+            if found:
+                break
+        if found:
+            result[key] = found
+    return result
+
+
+def _sample_windows(demo: DemoData, windows: dict, sampler: Sampler) -> dict:
+    """One position query covering every window on the sampling grid (grid anchored at each window's start)."""
+    step = max(1, round(SAMPLE_STEP * demo.tickrate))
+    ticks = {tick for _, first, end in windows.values() for tick in range(first, end + 1, step)}
+    return sampler(demo, sorted(ticks)) if ticks else {}
+
+
+def _search(
+    rng: random.Random,
+    demo: DemoData,
+    paths: list[CamPath],
+    mode: str,
+    count: int,
+    max_length: float,
+    windows: dict,
+    snapshots: dict,
+) -> list[BrollShot]:
+    """Random (window, start, path) tries until `count` shots satisfy the mode; shots never overlap."""
+    tickrate = demo.tickrate
+    usable = [p for p in paths if min(p.duration, max_length) >= MIN_LENGTH]
+    if not usable or not windows or not snapshots:
         return []
-
+    step_ticks = max(1, round(SAMPLE_STEP * tickrate))
     start_step_ticks = max(step_ticks, round(START_STEP * tickrate) // step_ticks * step_ticks)
+    keys = list(windows)
     chosen: list[BrollShot] = []
     used_paths: set[str] = set()
     margin = EMPTY_MARGIN if mode == "empty" else VIEW_MARGIN
     for attempt in range(ATTEMPTS):
         if len(chosen) >= count:
             break
-        round_ = rng.choice(rounds)
+        round_index, first, end_limit = windows[rng.choice(keys)]
         path = rng.choice(usable)
         if path.name in used_paths and attempt < ATTEMPTS * 0.6 and len(usable) > len(used_paths):
             continue  # prefer a variety of paths
-        seconds = min(path.duration, max_length)
-        first = live[round_.index].start
-        last = round_.end_tick - int(seconds * tickrate)
-        if last < first:
+        seconds = min(path.duration, max_length, (end_limit - first) / tickrate)
+        if seconds < MIN_LENGTH:
             continue
+        last = end_limit - int(seconds * tickrate)
         start_tick = first + rng.randrange(0, (last - first) // start_step_ticks + 1) * start_step_ticks
         end_tick = start_tick + int(seconds * tickrate)
-        if any(s.round_index == round_.index and start_tick < s.end_tick and s.start_tick < end_tick for s in chosen):
+        if any(s.round_index == round_index and start_tick < s.end_tick and s.start_tick < end_tick for s in chosen):
             continue
         result = _evaluate(path, seconds, start_tick, tickrate, snapshots, margin)
         if result is None:
@@ -157,15 +227,15 @@ def plan_demo_broll(
             continue
         if mode == "players" and presence < MIN_PRESENCE:
             continue
-        chosen.append(BrollShot(round_.index, path, start_tick, end_tick, seconds, presence, visible, anchor))
+        chosen.append(BrollShot(round_index, path, start_tick, end_tick, seconds, presence, visible, anchor))
         used_paths.add(path.name)
-    return sorted(chosen, key=lambda s: s.start_tick)
+    return chosen
 
 
-def shot_sequences(demo: DemoData, shots: list[BrollShot], mode: str) -> list[Sequence]:
+def shot_sequences(demo: DemoData, shots: list[BrollShot], mode: str, first_number: int = 1) -> list[Sequence]:
     """One cam-path sequence per shot (the camera player only seeds the recording setup)."""
     sequences = []
-    for number, shot in enumerate(shots, 1):
+    for number, shot in enumerate(shots, first_number):
         anchor = shot.anchor if shot.anchor in demo.slots else next(iter(demo.slots), "")
         if not anchor:
             raise ValueError("The demo has no player slots to aim a camera with")

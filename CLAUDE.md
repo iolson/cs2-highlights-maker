@@ -114,6 +114,8 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   table the same command prints without them (after `pick_rows`); `print_top_table(numbers=)` keeps them.
 - `batch.slowmo_hint` → `slowmo_suggestion` in each batch JSON: the `--slow-mode auto` pick (`best_kill` +
   `choose` over the whole batch), never applied; shown in the batch table's "Slow-mo" column.
+- `batch --buildup` (`broll.plan_buildups`: same round incl. freeze time, latest window first, so the shot
+  ends at the clip start; `<name>-buildup.*`, sequences numbered after the others and mapped by `id()`).
 - `video/vertical.py` — `--vertical blur|crop` (+ `--vertical-killfeed`): final 1080x1920 copy
   `<output>-vertical.mp4` via one FFmpeg filter pass after the concat (kill-feed crop region constants
   assume the default top-right position).

@@ -770,6 +770,14 @@ def top(
 )
 @click.option("--json-only", is_flag=True, help="Select and plan only: print the table, write the JSON files, record nothing")
 @click.option("--keep-clips", is_flag=True, help="Keep each demo's work dir with the raw clips")
+@click.option(
+    "--buildup",
+    type=click.Choice(["empty", "players"]),
+    default=None,
+    help="Also record a cam-path build-up shot per clip from the same round before the play "
+    "(<name>-buildup.mp4): empty = nobody in view, players = players in view",
+)
+@click.option("--buildup-length", type=float, default=6.0, show_default=True, help="Longest build-up shot, seconds")
 @click.option("--timing-offset", type=float, default=0.0, help="Seconds added to kill times in the reports")
 def batch(
     demos: tuple[str, ...],
@@ -799,6 +807,8 @@ def batch(
     json_only: bool,
     keep_clips: bool,
     timing_offset: float,
+    buildup: str | None,
+    buildup_length: float,
 ) -> None:
     """One clip + JSON per highlight across DEMOs, for a separate compilation step.
 
@@ -885,6 +895,8 @@ def batch(
         round_rules=round_rules,
         pick=pick_numbers,
         exclude=exclude_numbers,
+        buildup=buildup,
+        buildup_length=buildup_length,
     )
     if json_only:
         console.print(f"[green]Planned:[/green] reports written to {output_dir}")

@@ -214,6 +214,8 @@ def run_batch(
     round_rules: list | None = None,
     pick: list[int] | None = None,
     exclude: list[int] | None = None,
+    buildup: str | None = None,
+    buildup_length: float = 6.0,
 ) -> list[Path]:
     """Select the best moments across all demos, then record each demo and write one clip + JSON per moment."""
     import click
@@ -283,18 +285,59 @@ def run_batch(
             data = json.loads(report.read_text(encoding="utf-8"))
             data["slowmo_suggestion"] = slowmo_hint(slow_of.get(id(clip.pov.moments[0])), clip.pov, job.demo.tickrate)
             report.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        buildups: dict[int, str] = {}
+        if buildup:
+            extra, buildups = plan_buildup_sequences(job, clips, config, buildup, buildup_length, len(sequences), output_dir)
+            sequences = [*sequences, *extra]
         if json_only:
             continue
         written += _record_demo(
-            job, sequences, clips, config, output_dir, keep_clips, timing_offset
+            job, sequences, clips, buildups, config, output_dir, keep_clips, timing_offset
         )
     return written
+
+
+def plan_buildup_sequences(
+    job: DemoJob,
+    clips: list[ClipPlan],
+    config: Config,
+    mode: str,
+    max_length: float,
+    numbered_so_far: int,
+    output_dir: Path,
+) -> tuple[list[Sequence], dict[int, str]]:
+    """A build-up cam-path shot per clip from the same round before the clip starts; writes each
+    `<name>-buildup.json` and returns the sequences (numbered after the others) and id(sequence) -> name."""
+    from highlights.broll import plan_buildups, shot_report, shot_sequences
+    from highlights.recording.campaths import load_campaths, resolve_campaths_dir
+
+    paths = load_campaths(resolve_campaths_dir(config), job.demo.map_name)
+    if not paths:
+        warn(f"{job.label}: no cam paths for {job.demo.map_name}, no build-up shots")
+        return [], {}
+    targets = {clip.name: (clip.pov.round_index, clip.pov.start_tick) for clip in clips}
+    shots = plan_buildups(job.demo, paths, mode, targets, max_length)
+    missing = [name for name in targets if name not in shots]
+    if missing:
+        warn(f"{job.label}: no {mode} build-up window before {', '.join(missing)}")
+    names = list(shots)
+    sequences = shot_sequences(job.demo, [shots[n] for n in names], f"build-up {mode}", numbered_so_far + 1)
+    by_id: dict[int, str] = {}
+    for sequence, name in zip(sequences, names):
+        buildup_name = f"{name}-buildup"
+        by_id[id(sequence)] = buildup_name
+        report = shot_report(job.demo, job.label, mode, shots[name], f"{buildup_name}.mp4")
+        report.update({"kind": "buildup", "for_clip": f"{name}.mp4"})
+        (output_dir / f"{buildup_name}.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+        info(f"{buildup_name}: {shots[name].path.name} {shots[name].seconds:.1f}s before the play")
+    return sequences, by_id
 
 
 def _record_demo(
     job: DemoJob,
     sequences: list[Sequence],
     clips: list[ClipPlan],
+    buildups: dict[int, str],
     config: Config,
     output_dir: Path,
     keep_clips: bool,
@@ -333,6 +376,12 @@ def _record_demo(
     for output, clip in recorded:
         sequence = output.sequence
         if sequence.cinematic_of is not None:
+            continue
+        if id(sequence) in buildups:
+            target = output_dir / f"{buildups[id(sequence)]}.mp4"
+            shutil.copy2(clip, target)
+            written.append(target)
+            info(f"Wrote {target}")
             continue
         name = name_of[id(sequence.moments[0])]
         target = output_dir / f"{name}.mp4"
