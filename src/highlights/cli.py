@@ -770,6 +770,13 @@ def top(
 )
 @click.option("--json-only", is_flag=True, help="Select and plan only: print the table, write the JSON files, record nothing")
 @click.option("--keep-clips", is_flag=True, help="Keep each demo's work dir with the raw clips")
+@click.option("--resume", is_flag=True, help="Skip clips whose <name>.mp4 is already in the output folder")
+@click.option(
+    "--reuse-recordings",
+    is_flag=True,
+    help="Reuse raw recordings kept by an earlier --keep-clips run when nothing about them changed; "
+    "only missing or changed sequences are recorded (implies --keep-clips)",
+)
 @click.option(
     "--buildup",
     type=click.Choice(["empty", "players"]),
@@ -807,6 +814,8 @@ def batch(
     json_only: bool,
     keep_clips: bool,
     timing_offset: float,
+    resume: bool,
+    reuse_recordings: bool,
     buildup: str | None,
     buildup_length: float,
 ) -> None:
@@ -895,6 +904,8 @@ def batch(
         round_rules=round_rules,
         pick=pick_numbers,
         exclude=exclude_numbers,
+        resume=resume,
+        reuse_recordings=reuse_recordings,
         buildup=buildup,
         buildup_length=buildup_length,
     )

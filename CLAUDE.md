@@ -116,6 +116,9 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   `choose` over the whole batch), never applied; shown in the batch table's "Slow-mo" column.
 - `batch --buildup` (`broll.plan_buildups`: same round incl. freeze time, latest window first, so the shot
   ends at the clip start; `<name>-buildup.*`, sequences numbered after the others and mapped by `id()`).
+- `batch --resume` (skip clips whose mp4 exists) and `--reuse-recordings` (`record_or_reuse` +
+  `<work>/recorded.json` of `_sequence_key`: ticks, cameras, cam path file sha1, retime, fps/size, extra
+  commands, names; implies keeping the work dir).
 - `video/vertical.py` — `--vertical blur|crop` (+ `--vertical-killfeed`): final 1080x1920 copy
   `<output>-vertical.mp4` via one FFmpeg filter pass after the concat (kill-feed crop region constants
   assume the default top-right position).

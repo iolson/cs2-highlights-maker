@@ -214,6 +214,8 @@ def run_batch(
     round_rules: list | None = None,
     pick: list[int] | None = None,
     exclude: list[int] | None = None,
+    resume: bool = False,
+    reuse_recordings: bool = False,
     buildup: str | None = None,
     buildup_length: float = 6.0,
 ) -> list[Path]:
@@ -273,6 +275,11 @@ def run_batch(
     written: list[Path] = []
     for job in jobs:
         mine = [(moment, name) for (demo, moment), name in zip(picked, names) if demo is job.demo]
+        if resume:
+            done = [name for _, name in mine if (output_dir / f"{name}.mp4").is_file()]
+            if done:
+                info(f"{job.label}: already done, skipping {', '.join(done)}")
+            mine = [(moment, name) for moment, name in mine if name not in done]
         if not mine:
             continue
         info(f"[bold]{job.label}[/bold]: {len(mine)} clip(s)")
@@ -292,7 +299,8 @@ def run_batch(
         if json_only:
             continue
         written += _record_demo(
-            job, sequences, clips, buildups, config, output_dir, keep_clips, timing_offset
+            job, sequences, clips, buildups, config, output_dir, keep_clips or reuse_recordings, timing_offset,
+            reuse_recordings,
         )
     return written
 
@@ -333,6 +341,61 @@ def plan_buildup_sequences(
     return sequences, by_id
 
 
+def _sequence_key(sequence: Sequence, config: Config) -> str:
+    """What a recording depends on; a kept recording is reused only when this is unchanged."""
+    import hashlib
+
+    campath = ""
+    if sequence.campath is not None and Path(sequence.campath).is_file():
+        campath = hashlib.sha1(Path(sequence.campath).read_bytes()).hexdigest()
+    return json.dumps(
+        [
+            sequence.start_tick,
+            sequence.end_tick,
+            [(c.tick, c.steamid) for c in sequence.cameras],
+            campath,
+            sequence.campath_retime,
+            config.recording.fps,
+            config.recording.width,
+            config.recording.height,
+            sorted(config.recording.extra_commands),
+            sorted(config.recording.player_names.items()),
+        ],
+        sort_keys=True,
+    )
+
+
+def record_or_reuse(job: DemoJob, sequences: list[Sequence], config: Config, reuse: bool) -> list:
+    """Record the sequences, or with `reuse` only those without an identical kept recording
+    (tracked in <work>/recorded.json). Returns the outputs found afterwards."""
+    from highlights.recording.recorder import record, verify_outputs
+
+    manifest_path = job.work_dir / "recorded.json"
+    manifest: dict[str, str] = {}
+    if manifest_path.is_file():
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except ValueError:
+            manifest = {}
+    keys = {s.name: _sequence_key(s, config) for s in sequences}
+    todo = sequences
+    if reuse:
+        todo = [
+            s for s in sequences
+            if manifest.get(s.name) != keys[s.name] or not (job.work_dir / s.name / "video.mp4").is_file()
+        ]
+        if len(todo) < len(sequences):
+            info(f"{job.label}: reusing {len(sequences) - len(todo)} kept recording(s), recording {len(todo)}")
+    if todo:
+        record(job.demo, todo, config, job.work_dir)
+    outputs = verify_outputs(sequences, job.work_dir)
+    for output in outputs:
+        manifest[output.sequence.name] = keys[output.sequence.name]
+    job.work_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    return outputs
+
+
 def _record_demo(
     job: DemoJob,
     sequences: list[Sequence],
@@ -342,15 +405,16 @@ def _record_demo(
     output_dir: Path,
     keep_clips: bool,
     timing_offset: float,
+    reuse: bool = False,
 ) -> list[Path]:
     from highlights import cli
-    from highlights.recording.recorder import RecordingSetupError, record, resolve_tools
+    from highlights.recording.recorder import RecordingSetupError, resolve_tools
     from highlights.report import finalize_report
     from highlights.video.ffmpeg import probe_duration
     from highlights.video.postprocess import process_clip
 
     try:
-        outputs = record(job.demo, sequences, config, job.work_dir)
+        outputs = record_or_reuse(job, sequences, config, reuse)
     except RecordingSetupError as exc:
         warn(f"{job.label}: recording failed, skipping this demo: {exc}")
         return []

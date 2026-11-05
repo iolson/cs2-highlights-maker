@@ -64,6 +64,10 @@ highlights batch season59-match07=a.dem season59-match08=b.dem \
 - `--buildup empty|players` adds `<name>-buildup.mp4` + `.json` (`kind: buildup`, `for_clip`) per
   clip: a cam-path shot from the same round (freeze time included) that ends right before the
   play starts, with nobody / players in view. `--buildup-length` caps it (default 6 s).
+- `--resume` skips clips whose `.mp4` is already in the output folder. `--reuse-recordings` reuses
+  raw recordings kept by an earlier `--keep-clips` run (and keeps them), recording only sequences
+  that are missing or changed (ticks, cameras, cam path file, fps/size, `--cmd`, names), so a
+  post-processing change does not need CS2 again.
 
 ### Place names
 
