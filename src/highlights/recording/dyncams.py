@@ -119,8 +119,9 @@ class Shot:
 # Wide shots, 1-2 m from the player (reference clips: front and rear follow shots at
 # roughly 150-200 units with a wide fov), drifting slowly while held.
 def shot(style: str, u: float) -> Shot:
-    if style == "face":  # close-up: a face cam a forearm away, head-height, face fills the frame
-        return Shot(_lerp(4.0, -12.0, u), _lerp(58.0, 46.0, u), -2.0, -2.0, 80.0)
+    if style == "face":  # tight close-up: a head is ~12 units tall, so this fills most of the frame
+        # radius = how far the camera is from the head (units): smaller = tighter; slow push-in while held.
+        return Shot(_lerp(8.0, -10.0, u), _lerp(26.0, 20.0, u), -3.0, -3.0, 70.0)
     if style == "profile":
         return Shot(_lerp(-95.0, -80.0, u), _lerp(70.0, 58.0, u), 2.0, 0.0, 85.0)
     if style == "gun":  # low front three-quarter on the weapon side, weapon and torso in frame

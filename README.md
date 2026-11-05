@@ -275,7 +275,7 @@ cinematic (clip length, kill times and audio are unchanged).
 
 Styles: `face`, `profile`, `gun`, `tps` (over the shoulder), `heli` (high, looking down).
 Pass one, a comma-separated list, or `random` (picked per clip, the same way on every run
-of the same demo). `gun` is a wide shot 1-2 m from the player; `face` is a close-up (about 50 units).
+of the same demo). `gun` is a wide shot 1-2 m from the player; `face` is a tight close-up (about 20-26 units from the head, the face fills most of the frame).
 
 - `--intro-cam STYLE` opens every clip (up to 3.5 s, shorter when a kill comes early) on
   the style's shot, then spirals round to just behind the player and pushes into the exact

@@ -49,7 +49,7 @@ def test_eye_pose_adds_eye_height_and_interpolates_yaw_the_short_way():
 @pytest.mark.parametrize("style", STYLES)
 def test_every_style_has_a_shot_that_faces_the_player(style):
     pose = style_pose(style, EYE, 0.0)
-    assert math.dist(pose.pos, EYE.pos) > 30
+    assert math.dist(pose.pos, EYE.pos) > 15  # a head is ~12 units: the camera never sits in it
     if style != "tps":  # tps looks where the player looks, the others at them
         yaw, _ = look_at(pose.pos, EYE.pos)
         assert abs((pose.yaw - yaw + 180) % 360 - 180) < 15
@@ -80,14 +80,14 @@ def test_intro_ends_exactly_on_the_eye(style):
 def test_intro_swoop_keeps_clear_of_the_players_head_until_the_last_push(style):
     intro = Segment(0.0, 3.5, "intro", style)
     distances = [math.dist(segment_pose(intro, EYE, 3.5 * i / 70).pos, EYE.pos) for i in range(0, 61)]
-    assert min(distances) > 25  # up to 87% of the way: never through the head
+    assert min(distances) > 14  # up to 87% of the way: never through the head (a head is ~6 units across)
 
 
 @pytest.mark.parametrize("style", STYLES)
 def test_cut_intro_holds_the_shot_to_the_end_without_swooping(style):
     cut = Segment(0.0, 3.0, "intro", style, swoop=False)
     poses = [segment_pose(cut, EYE, 3.0 * i / 30) for i in range(31)]
-    assert all(math.dist(p.pos, EYE.pos) > 40 for p in poses)  # never pushes into the eye
+    assert all(math.dist(p.pos, EYE.pos) > 15 for p in poses)  # never pushes into the eye
     assert close(poses[-1].pos, style_pose(style, EYE, 1.0).pos)  # still on the chosen shot at the cut
     assert close(poses[0].pos, segment_pose(Segment(0.0, 3.0, "intro", style), EYE, 0.0).pos)  # same opening
 
@@ -96,7 +96,7 @@ def test_cut_intro_holds_the_shot_to_the_end_without_swooping(style):
 def test_downtime_is_one_continuous_pass_that_never_swoops_to_the_eye(style):
     down = Segment(2.0, 8.0, "downtime", style)
     poses = [segment_pose(down, EYE, 2.0 + 6.0 * i / 20) for i in range(21)]
-    assert all(math.dist(p.pos, EYE.pos) > 40 for p in poses)
+    assert all(math.dist(p.pos, EYE.pos) > 15 for p in poses)
     steps = [math.dist(a.pos, b.pos) for a, b in zip(poses, poses[1:])]
     assert max(steps) < 60  # smooth drift, no jumps between samples
 
@@ -177,3 +177,12 @@ def test_only_the_longest_passes_are_kept_and_short_gaps_are_skipped():
     assert lengths == [5.5, 8.5]
     short = plan_segments(10.0, [3.0, 8.0], [], None, "heli")  # gaps 0-2 (too short), 4-7, 9-10 (too short)
     assert [(s.start, s.end) for s in short] == [(4.0, 7.0)]
+
+
+def test_face_is_a_tight_close_up_of_the_head():
+    from highlights.recording.dyncams import shot
+
+    for u in (0.0, 0.5, 1.0):
+        face = shot("face", u)
+        assert 16 <= face.radius <= 30 and face.fov <= 75  # a head is ~12 units: this fills most of the frame
+        assert abs(face.angle) < 15  # in front of the face, not to the side
