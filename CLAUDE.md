@@ -84,6 +84,12 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   (window `LEAD`/`TAIL` around the kill, `SPEED` 0.4; drops the lowest-worth beats to fit `--max-duration`).
   `cli._apply_slowmo` retimes the window with FFmpeg after splice, before concat; `finalize_report` remaps
   event/beat times through it (`slowmo.remap`). Constant speed, no frame interpolation, no ramp.
+- `analysis/tilt.py` + `video/tiltshift.py` — `--tilt-mode auto|on` (run and batch; needs splice mode): `plan_sequences`
+  sets `Sequence.tilt` on real cam-path takes (never `dynamic_cam` ones). `auto` = mean camera-to-player distance
+  >= `MIN_DISTANCE` 700 and height >= `MIN_HEIGHT` 150 over the splice segments (pose via `retime`d path), best
+  `MAX_FRACTION` 0.5 of the plays; `on` = all. `splice_clip(..., tilt=True)` runs `tilt_filter()` (split, gblur, `blend`
+  weighted by distance from the centre line, `eq` saturation) on the cinematic input before the overlay. Look constants
+  are untuned.
 - `batch.py` — `highlights batch DEMO... [--players/--team --names-file] --top N -o DIR`: global best-N
   (`selection.pick_rows`, shared with `top`) over all demos, one isolated sequence per moment
   (`build_sequences(..., merge=False)`), cinematic (always splice) + generated cams per demo, ONE

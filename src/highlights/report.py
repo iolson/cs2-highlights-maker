@@ -169,6 +169,7 @@ def write_report(
             "duration_seconds": round(s.duration_seconds(demo.tickrate), 1),
             "clip_filename": f"clip_{s.number:02d}.mp4",
             "slowmo": s.slowmo,
+            "tilt": s.tilt,
             "cinematic": (
                 {
                     "campath": s.campath.name,

@@ -149,6 +149,8 @@ class Sequence:
     # --slow-mode auto: the slow-motion beat, {"kill_tick", "start_seconds", "end_seconds", "speed",
     # "worth", "reason", "victim"} (clip seconds); applied to the finished POV clip.
     slowmo: dict | None = None
+    # --tilt-mode: the cam-path footage of this take gets a tilt-shift look, {"distance", "height", "reason"}.
+    tilt: dict | None = None
     # Top cam path candidates considered for this play (name, distance, coverage).
     cinematic_candidates: list[dict] | None = None
     # Generated-cam segments (start, end, kind, style) of a --intro-cam/--downtime-cam take.

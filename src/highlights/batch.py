@@ -111,6 +111,7 @@ def plan_demo(
     align: bool,
     intro_cam: list[str] | None,
     downtime_cam: list[str] | None,
+    tilt_mode: str = "off",
 ) -> tuple[list[Sequence], list[ClipPlan]]:
     """Every sequence to record for this demo (POV plus cinematic/generated takes) and the clips they make."""
     from highlights import cli
@@ -154,6 +155,11 @@ def plan_demo(
             sequences, spatial, demo, sample_pov_tracks, job.work_dir / "dyncams", intro_cam, downtime_cam
         )
 
+    if tilt_mode != "off":
+        from highlights.analysis.tilt import plan_sequences as plan_tilt
+
+        sequences = plan_tilt(sequences, spatial, demo.tickrate, tilt_mode)
+
     clips = []
     for pov in (s for s in sequences if s.cinematic_of is None):
         group, group_spatial = clip_group(sequences, spatial, pov)
@@ -176,6 +182,7 @@ def run_batch(
     align: bool = False,
     intro_cam: list[str] | None = None,
     downtime_cam: list[str] | None = None,
+    tilt_mode: str = "off",
 ) -> list[Path]:
     """Select the best moments across all demos, then record each demo and write one clip + JSON per moment."""
     import click
@@ -215,7 +222,9 @@ def run_batch(
         if not mine:
             continue
         info(f"[bold]{job.label}[/bold]: {len(mine)} clip(s)")
-        sequences, clips = plan_demo(job, mine, config, cinematic, cinematic_path, hold, align, intro_cam, downtime_cam)
+        sequences, clips = plan_demo(
+            job, mine, config, cinematic, cinematic_path, hold, align, intro_cam, downtime_cam, tilt_mode
+        )
         for clip in clips:
             write_report(output_dir / f"{clip.name}.json", job.demo, clip.group, spatial_by_sequence=clip.spatial)
         if json_only:

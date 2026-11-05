@@ -294,6 +294,27 @@ decision and records it in the JSON as `slowmo` per sequence (`--json-only` prev
   beats are dropped first when it would not fit), and the report's `video_time_seconds` and
   `beat_targets` include the retime.
 
+## Tilt-shift (`--tilt-mode auto|on`)
+
+Gives cam-path shots a miniature "tilt-shift" look: the middle band of the frame stays sharp,
+the top and bottom blur out, and colour gets a slight boost. It needs `--cinematic
+--cinematic-mode splice` (`batch` is always splice) and applies only to the cam-path footage cut
+into a clip, never to first-person footage or the generated intro/down-time cams (those are
+close-ups, where it just looks out of focus).
+
+- `--tilt-mode on` tilts every cam-path shot.
+- `--tilt-mode auto` tilts only wide, elevated shots: on average at least 700 units from the
+  player and 150 units above them while it is on screen, best first, and at most half of the
+  plays. Close or ground-level cam paths stay sharp.
+- The decision is data-only, so `--json-only` previews it (`tilt` per sequence in the JSON, with
+  the distance and height behind it). The look itself is an FFmpeg filter applied to the cam-path
+  footage before it is overlaid (`src/highlights/video/tiltshift.py` has the blur, band and
+  saturation constants).
+
+```powershell
+highlights match.dem --cinematic --cinematic-mode splice --tilt-mode auto
+```
+
 ## Vertical version (`--vertical`)
 
 Recording stays 16:9; `--vertical blur|crop` adds a 1080x1920 copy of the finished video next

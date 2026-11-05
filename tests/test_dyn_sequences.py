@@ -84,7 +84,7 @@ def test_splice_chain_applies_real_take_first_then_generated(monkeypatch, tmp_pa
     calls = []
     monkeypatch.setattr(
         "highlights.video.splice.splice_clip",
-        lambda ffmpeg, clip, take, segments, out, crf: calls.append((clip.name, take.name, segments)) or out,
+        lambda ffmpeg, clip, take, segments, out, crf, tilt=False: calls.append((clip.name, take.name, segments)) or out,
     )
     def rec(sequence, name):
         return SimpleNamespace(sequence=sequence), Path(name)

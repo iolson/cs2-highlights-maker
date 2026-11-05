@@ -205,6 +205,13 @@ def _parse_player_names(values: tuple[str, ...]) -> dict[str, str]:
     "wallbang...) a short slow-motion beat; most clips get none",
 )
 @click.option(
+    "--tilt-mode",
+    type=click.Choice(["off", "auto", "on"]),
+    default="off",
+    help="Tilt-shift look (sharp middle band, blurred top/bottom) on cam-path shots; needs --cinematic "
+    "--cinematic-mode splice. auto: only wide, elevated shots; on: every cam-path shot",
+)
+@click.option(
     "--campath-hold",
     is_flag=True,
     help="With --cinematic: keep each cam path's last pose until the clip ends instead of returning to the POV",
@@ -271,6 +278,7 @@ def run(
     cinematic_path: str | None,
     cinematic_mode: str,
     slow_mode: str,
+    tilt_mode: str,
     campath_hold: bool,
     campath_align: bool,
     intro_cam: list[str] | None,
@@ -284,6 +292,8 @@ def run(
         raise click.UsageError("--campath-hold/--campath-align need --cinematic")
     if campath_align and cinematic_mode != "splice":
         raise click.UsageError("--campath-align needs --cinematic-mode splice")
+    if tilt_mode != "off" and not (cinematic and cinematic_mode == "splice"):
+        raise click.UsageError("--tilt-mode needs --cinematic --cinematic-mode splice")
     if vertical_killfeed and vertical != "blur":
         raise click.UsageError("--vertical-killfeed needs --vertical blur")
     if suggest_cinematic and cinematic:
@@ -384,6 +394,12 @@ def run(
             intro_cam,
             downtime_cam,
         )
+
+    if tilt_mode != "off":
+        from highlights.analysis.tilt import plan_sequences as plan_tilt
+
+        sequences = plan_tilt(sequences, spatial, parsed.tickrate, tilt_mode)
+        info(f"Tilt-shift: {sum(1 for s in sequences if s.tilt)} cam-path shot(s)")
 
     if slow_mode == "auto":
         from highlights.analysis.slowmo import plan_sequences
@@ -509,6 +525,7 @@ def _splice_cinematics(ffmpeg_exe: Path, recorded: list, clips_dir: Path, crf: i
                 take.sequence.splice_segments,
                 clips_dir / f"spliced_{sequence.number:02d}_{step}.mp4",
                 crf,
+                tilt=bool(take.sequence.tilt),
             )
         result.append((output, clip))
     return result
@@ -666,6 +683,12 @@ def top(
 )
 @click.option("--cinematic", is_flag=True, help="Cut your cam paths into each clip (splice mode)")
 @click.option("--cinematic-path", default=None, help="Use this cam path for every clip instead of matching")
+@click.option(
+    "--tilt-mode",
+    type=click.Choice(["off", "auto", "on"]),
+    default="off",
+    help="Tilt-shift look on cam-path shots (needs --cinematic): auto = wide, elevated shots only, on = all",
+)
 @click.option("--campath-hold", is_flag=True, help="Keep each cam path's last pose until the clip ends")
 @click.option("--campath-align", is_flag=True, help="Also start each cam path late, where it sees the player longest")
 @click.option(
@@ -700,6 +723,7 @@ def batch(
     extra_commands: tuple[str, ...],
     cinematic: bool,
     cinematic_path: str | None,
+    tilt_mode: str,
     campath_hold: bool,
     campath_align: bool,
     intro_cam: list[str] | None,
@@ -720,6 +744,8 @@ def batch(
         raise click.UsageError("--team needs --names-file")
     if (campath_hold or campath_align or cinematic_path) and not cinematic:
         raise click.UsageError("--campath-hold/--campath-align/--cinematic-path need --cinematic")
+    if tilt_mode != "off" and not cinematic:
+        raise click.UsageError("--tilt-mode needs --cinematic")
     config = load_config()
     for section, name, value in (
         (config.selection, "top", top),
@@ -780,6 +806,7 @@ def batch(
         align=campath_align,
         intro_cam=intro_cam,
         downtime_cam=downtime_cam,
+        tilt_mode=tilt_mode,
     )
     if json_only:
         console.print(f"[green]Planned:[/green] reports written to {output_dir}")
