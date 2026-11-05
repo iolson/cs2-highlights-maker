@@ -87,8 +87,9 @@ the `run` subcommand. Entry point `highlights.cli:main`.
 - `analysis/tilt.py` + `video/tiltshift.py` — `--tilt-mode auto|on` (run and batch; needs splice mode): `plan_sequences`
   sets `Sequence.tilt` on real cam-path takes (never `dynamic_cam` ones). `auto` = mean camera-to-player distance
   >= `MIN_DISTANCE` 700 and height >= `MIN_HEIGHT` 150 over the splice segments (pose via `retime`d path), best
-  `MAX_FRACTION` 0.5 of the plays; `on` = all. `splice_clip(..., tilt=True)` runs `tilt_filter()` (split, gblur, `blend`
-  weighted by distance from the centre line, `eq` saturation) on the cinematic input before the overlay. Look constants
+  `MAX_FRACTION` 0.5 of the plays; `on` = all. `splice_clip(..., tilt=True)` runs `tilt_filter(width, height)` (blur on a
+  quarter-size copy, one-frame gradient mask + `maskedmerge`, `eq` saturation; a per-pixel `blend` expression was ~25x
+  slower than a plain pass at 1080p120, so keep expressions off the per-frame path) on the cinematic input before the overlay. Look constants
   are untuned.
 - `broll.py` — `highlights broll DEMO... --mode empty|players [--count --max-length --seed --cinematic-path]`: cam-path-only
   clips for pre-edit build-up. `plan_demo_broll` randomly tries (round, start, path) windows in the live phase, with

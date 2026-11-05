@@ -47,19 +47,19 @@ def test_generated_cams_are_never_tilted(tmp_path):
 
 def test_splice_filter_tilts_only_the_cinematic_input():
     plain = splice_filter([(1.0, 3.0)])
-    tilted = splice_filter([(1.0, 3.0)], tilt=True)
-    assert "blend" not in plain and tilted.startswith("[1:v]") and "gblur" in tilted
+    tilted = splice_filter([(1.0, 3.0)], tilt=(320, 180))
+    assert "maskedmerge" not in plain and tilted.startswith("[1:v]") and "gblur" in tilted
     assert "[0:v][cin]overlay=enable='between(t,1.000,3.000)'" in tilted
 
 
 @pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg not installed")
 def test_tilt_filter_blurs_the_edges_and_keeps_the_middle_sharp(tmp_path):
-    width, height = 160, 180
+    width, height = 320, 180
     raw = subprocess.run(
         [
             "ffmpeg", "-loglevel", "error", "-f", "lavfi",
             "-i", f"nullsrc=s={width}x{height}:d=1:r=1,geq=lum='255*mod(X+Y,2)':cb=128:cr=128",
-            "-filter_complex", f"[0:v]{tilt_filter()}[v]", "-map", "[v]",
+            "-filter_complex", f"[0:v]{tilt_filter(320, 180)}[v]", "-map", "[v]",
             "-frames:v", "1", "-pix_fmt", "gray", "-f", "rawvideo", "-",
         ],
         capture_output=True, check=True,
@@ -90,5 +90,5 @@ def test_tilted_splice_runs_end_to_end(tmp_path):
             check=True,
         )
         clips.append(clip)
-    out = splice_clip(ffmpeg, clips[0], clips[1], [(1.0, 2.0)], tmp_path / "out.mp4", tilt=True)
+    out = splice_clip(ffmpeg, clips[0], clips[1], [(1.0, 2.0)], tmp_path / "out.mp4", tilt=(320, 180))
     assert out.stat().st_size > 0

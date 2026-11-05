@@ -437,7 +437,13 @@ def run(
     with console.status("Post-processing clips..."):
         recorded = [(o, process_clip(tools.ffmpeg_exe, o, work_dir / "clips", overlays)) for o in outputs]
         if any(o.sequence.splice_segments for o, _ in recorded):
-            recorded = _splice_cinematics(tools.ffmpeg_exe, recorded, work_dir / "clips", config.recording.crf)
+            recorded = _splice_cinematics(
+                tools.ffmpeg_exe,
+                recorded,
+                work_dir / "clips",
+                config.recording.crf,
+                (config.recording.width, config.recording.height),
+            )
         if any(o.sequence.slowmo for o, _ in recorded):
             recorded = _apply_slowmo(tools.ffmpeg_exe, recorded, work_dir / "clips", config.recording.crf)
         outputs = [o for o, _ in recorded]
@@ -499,7 +505,9 @@ def _apply_slowmo(ffmpeg_exe: Path, recorded: list, clips_dir: Path, crf: int) -
     return result
 
 
-def _splice_cinematics(ffmpeg_exe: Path, recorded: list, clips_dir: Path, crf: int) -> list:
+def _splice_cinematics(
+    ffmpeg_exe: Path, recorded: list, clips_dir: Path, crf: int, size: tuple[int, int] = (1920, 1080)
+) -> list:
     """Replace each POV clip with its spliced version; spliced cinematic clips leave the list.
 
     Takes of one play are overlaid in order (cam path first, generated cams on top).
@@ -518,6 +526,12 @@ def _splice_cinematics(ffmpeg_exe: Path, recorded: list, clips_dir: Path, crf: i
             continue
         ordered = sorted(takes.get(sequence.number, []), key=lambda take: take[0].sequence.dynamic_cam is not None)
         for step, (take, take_clip) in enumerate(ordered):
+            kind = "generated cam" if take.sequence.dynamic_cam is not None else "cam path"
+            info(
+                f"Splicing {kind} into clip {sequence.number}"
+                + (" with tilt-shift" if take.sequence.tilt else "")
+                + f" ({step + 1}/{len(ordered)})..."
+            )
             clip = splice_clip(
                 ffmpeg_exe,
                 clip,
@@ -525,7 +539,7 @@ def _splice_cinematics(ffmpeg_exe: Path, recorded: list, clips_dir: Path, crf: i
                 take.sequence.splice_segments,
                 clips_dir / f"spliced_{sequence.number:02d}_{step}.mp4",
                 crf,
-                tilt=bool(take.sequence.tilt),
+                tilt=size if take.sequence.tilt else None,
             )
         result.append((output, clip))
     return result

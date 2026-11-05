@@ -259,9 +259,15 @@ def _record_demo(
 
     tools = resolve_tools(config, auto_install=False)
     clips_dir = job.work_dir / "clips"
-    recorded = [(o, process_clip(tools.ffmpeg_exe, o, clips_dir, False)) for o in outputs]
+    info(f"{job.label}: recording done, post-processing {len(outputs)} sequence(s)...")
+    recorded = []
+    for index, o in enumerate(outputs, 1):
+        info(f"{job.label}: preparing clip {index}/{len(outputs)}...")
+        recorded.append((o, process_clip(tools.ffmpeg_exe, o, clips_dir, False)))
     if any(o.sequence.splice_segments for o, _ in recorded):
-        recorded = cli._splice_cinematics(tools.ffmpeg_exe, recorded, clips_dir, config.recording.crf)
+        recorded = cli._splice_cinematics(
+            tools.ffmpeg_exe, recorded, clips_dir, config.recording.crf, (config.recording.width, config.recording.height)
+        )
 
     name_of = {id(c.pov.moments[0]): c.name for c in clips}
     written = []
