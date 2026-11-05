@@ -785,6 +785,7 @@ def top(
     "(<name>-buildup.mp4): empty = nobody in view, players = players in view",
 )
 @click.option("--buildup-length", type=float, default=6.0, show_default=True, help="Longest build-up shot, seconds")
+@click.option("--no-review", is_flag=True, help="Skip the clipping check and contact sheets after recording")
 @click.option("--no-kill-sync", is_flag=True, help="Keep nominal kill times (skip measuring them from the kill feed)")
 @click.option("--timing-offset", type=float, default=0.0, help="Seconds added to kill times in the reports")
 def batch(
@@ -819,6 +820,7 @@ def batch(
     reuse_recordings: bool,
     buildup: str | None,
     buildup_length: float,
+    no_review: bool,
     no_kill_sync: bool,
 ) -> None:
     """One clip + JSON per highlight across DEMOs, for a separate compilation step.
@@ -910,6 +912,7 @@ def batch(
         reuse_recordings=reuse_recordings,
         buildup=buildup,
         buildup_length=buildup_length,
+        review=not no_review,
         calibrate=not no_kill_sync,
     )
     if json_only:
@@ -941,6 +944,7 @@ def batch(
 @click.option("--cmd", "extra_commands", multiple=True, metavar="COMMAND", help="Extra console command run at every clip's start")
 @click.option("--json-only", is_flag=True, help="Plan and write the JSON files only, do not record")
 @click.option("--keep-clips", is_flag=True, help="Keep the temporary work files")
+@click.option("--no-review", is_flag=True, help="Skip the clipping check and contact sheets after recording")
 def broll(
     demos: tuple[str, ...],
     mode: str,
@@ -956,6 +960,7 @@ def broll(
     extra_commands: tuple[str, ...],
     json_only: bool,
     keep_clips: bool,
+    no_review: bool,
 ) -> None:
     """Cam-path-only B-roll clips from DEMOs (PATH or LABEL=PATH), for pre-edit build-up.
 
@@ -1007,10 +1012,32 @@ def broll(
     written = run_broll(
         jobs, config, campaths_for, mode, count, max_length, output_dir, seed, json_only=json_only, keep_clips=keep_clips
     )
+    if written and not no_review:
+        from highlights.recording.recorder import resolve_tools
+        from highlights.video.review import review_dir
+
+        info("Reviewing cam-path footage and making contact sheets...")
+        review_dir(resolve_tools(config, auto_install=False).ffmpeg_exe, output_dir, [p.stem for p in written])
     if json_only:
         console.print(f"[green]Planned:[/green] reports written to {output_dir}")
     else:
         console.print(f"[green]Done:[/green] {len(written)} clip(s) in {output_dir} (took {int(time.monotonic() - started)}s)")
+
+
+@main.command()
+@click.argument("directory", type=click.Path(exists=True, file_okay=False, path_type=Path))
+def review(directory: Path) -> None:
+    """Check the cam-path parts of every clip in DIRECTORY for clipping and make contact sheets.
+
+    Works on folders written by `batch` and `broll` (each clip needs its .json); writes
+    review/<name>.jpg and review/index.html and stores the result as `review` in each JSON.
+    """
+    from highlights.recording.recorder import resolve_tools
+    from highlights.video.review import review_dir
+
+    results = review_dir(resolve_tools(load_config(), auto_install=False).ffmpeg_exe, directory)
+    if not results:
+        raise click.ClickException(f"No clips with a .json report in {directory}")
 
 
 @main.group(name="places")

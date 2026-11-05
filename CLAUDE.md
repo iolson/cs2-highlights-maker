@@ -123,6 +123,10 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   plain POV clip, before splicing, matched to nominal kill times; `measure_offset` needs `MIN_SHARE`
   agreement, one kill needs a single candidate) → per-clip `offset_seconds` +
   `editing.video_timing.kill_sync`, and the slow-mo hint shifted with it. UNVALIDATED on real footage.
+- `video/review.py` + `video/frames.py` — after `batch`/`broll` and `highlights review DIR`: contact sheet per
+  clip (`review/<name>.jpg`), `review/index.html`, and a heuristic clipping check on cam-path parts only
+  (`checked_ranges` from the JSON; dark mean or >= 75% flat 4x4 blocks on 64x36 gray frames at 4 fps, runs
+  of >= 2) stored as `review` in the JSON. No pre-recording geometry check exists (no map collision data).
 - `video/vertical.py` — `--vertical blur|crop` (+ `--vertical-killfeed`): final 1080x1920 copy
   `<output>-vertical.mp4` via one FFmpeg filter pass after the concat (kill-feed crop region constants
   assume the default top-right position).

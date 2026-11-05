@@ -68,6 +68,8 @@ highlights batch season59-match07=a.dem season59-match08=b.dem \
 - `--buildup empty|players` adds `<name>-buildup.mp4` + `.json` (`kind: buildup`, `for_clip`) per
   clip: a cam-path shot from the same round (freeze time included) that ends right before the
   play starts, with nobody / players in view. `--buildup-length` caps it (default 6 s).
+- After recording, the cam-path parts of every clip are checked for clipping and contact sheets
+  are made (see "Reviewing clips" below); `--no-review` skips it.
 - `--resume` skips clips whose `.mp4` is already in the output folder. `--reuse-recordings` reuses
   raw recordings kept by an earlier `--keep-clips` run (and keeps them), recording only sequences
   that are missing or changed (ticks, cameras, cam path file, fps/size, `--cmd`, names), so a
@@ -335,6 +337,18 @@ the same command prints without them, and `--exclude 3,7` to drop rows. Run `top
 highlights top a.dem b.dem --players "A,B,C" --top 10
 highlights batch a.dem b.dem --players "A,B,C" --top 10 --pick 1,2,4,5,7 --cinematic -o out
 ```
+
+## Reviewing clips (`highlights review`)
+
+`batch` and `broll` end with a review of what they wrote, and `highlights review DIR` runs it on
+any folder of clips with their `.json` files:
+
+- `review/<name>.jpg`: a contact sheet, 12 frames spread over the clip.
+- `review/index.html`: every clip's sheet and verdict on one page, linking to the clip.
+- A clipping check on the cam-path parts only (cinematic and generated-cam segments, whole B-roll
+  and build-up clips; never first-person footage): runs of near-black or featureless frames are
+  flagged in the log, the page and the JSON (`review.suspect_ranges`). It is a heuristic: it can
+  miss a camera that sees through a wall and can flag a plain shot that is fine.
 
 ## B-roll for pre-edit build-up (`highlights broll`)
 

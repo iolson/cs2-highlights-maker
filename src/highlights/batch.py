@@ -218,6 +218,7 @@ def run_batch(
     reuse_recordings: bool = False,
     buildup: str | None = None,
     buildup_length: float = 6.0,
+    review: bool = True,
     calibrate: bool = True,
 ) -> list[Path]:
     """Select the best moments across all demos, then record each demo and write one clip + JSON per moment."""
@@ -303,6 +304,12 @@ def run_batch(
             job, sequences, clips, buildups, config, output_dir, keep_clips or reuse_recordings, timing_offset,
             reuse_recordings, calibrate,
         )
+    if written and review:
+        from highlights.recording.recorder import resolve_tools
+        from highlights.video.review import review_dir
+
+        info("Reviewing cam-path footage and making contact sheets...")
+        review_dir(resolve_tools(config, auto_install=False).ffmpeg_exe, output_dir, [p.stem for p in written])
     return written
 
 
