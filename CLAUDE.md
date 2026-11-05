@@ -18,6 +18,8 @@ Windows-only at the recording stage; analysis runs anywhere.
 `highlights top DEMO... [--players ..] [--top N] [--round N|DEMO:N] [--pick 1,2 --exclude 3]` pools and ranks moments across demos and
 prints one table only (no JSON, no recording); players missing from a demo skip that demo.
 
+`run` also takes `--round` (filter in `cli._analyze`, before `select_sequences`).
+
 CLI: click with a custom `DefaultRunGroup` — `highlights match.dem` resolves to
 the `run` subcommand. Entry point `highlights.cli:main`.
 

@@ -91,3 +91,18 @@ def test_single_player_option_still_works(runner_and_demo):
     runner, dem_file = runner_and_demo
     _, report = _run(runner, dem_file, "--player", A)
     assert _steamids(report) == {A}
+
+def test_run_round_keeps_only_those_rounds(runner_and_demo):
+    runner, dem_file = runner_and_demo
+    _, report = _run(runner, dem_file, "--min-kills", "1", "--round", "1,3")
+    assert sorted(s["round"] for s in report["sequences"]) == [1, 3]
+    _, report = _run(runner, dem_file, "--players", f"{A},{B},{C}", "--round", "2")
+    assert [s["round"] for s in report["sequences"]] == [2]
+
+
+def test_run_round_with_no_play_fails_clearly(runner_and_demo):
+    runner, dem_file = runner_and_demo
+    result = runner.invoke(cli.main, [str(dem_file), "--json-only", "--min-kills", "1", "--round", "9"])
+    assert result.exit_code != 0 and "No highlights matched" in result.output
+    result = runner.invoke(cli.main, [str(dem_file), "--json-only", "--round", "x"])
+    assert result.exit_code == 2 and "Bad --round value" in result.output

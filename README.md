@@ -333,15 +333,20 @@ decision and records it in the JSON as `slowmo` per sequence (`--json-only` prev
 
 ## Picking plays by round (`--round`)
 
-`top` and `batch` take `--round` to keep only plays from certain rounds, using the round numbers
-shown in the table. It is applied before ranking, so `--top` counts only those plays.
+`run`, `top` and `batch` take `--round` to keep only plays from certain rounds, using the round
+numbers shown in the table. It is applied before ranking, so `--top` counts only those plays.
+
+```powershell
+highlights match.dem --player deviN --round 13 --cinematic --cinematic-mode splice
+```
 
 ```powershell
 highlights batch semi=a.dem final=b.dem --players "A,B" --round semi:1,2,10 --round final:6,7,13,15 -o out
 ```
 
 - `13` or `13,15`: those rounds in every demo. `semi:2,10`: those rounds in the demo labelled
-  `semi` only (the label is the `LABEL=` of `batch`, or the file name without `.dem` for `top`).
+  `semi` only (the label is the `LABEL=` of `batch`, or the file name without `.dem` for `top`);
+  `run` has one demo, so plain numbers are all it needs.
 - It can be repeated and combined with `--players`, which is how you separate two players who
   both had a play in the same round.
 

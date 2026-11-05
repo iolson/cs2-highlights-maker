@@ -67,8 +67,13 @@ def _scored_moments(demo: DemoData, config: Config) -> list[Moment]:
     return moments
 
 
-def _analyze(demo: DemoData, config: Config, queries: list[str]) -> list[Sequence]:
+def _analyze(demo: DemoData, config: Config, queries: list[str], round_rules: list | None = None) -> list[Sequence]:
     moments = _scored_moments(demo, config)
+    if round_rules:
+        from highlights.analysis.selection import round_allowed
+
+        moments = [m for m in moments if round_allowed(round_rules, demo.path.stem, m.round_index)]
+        info(f"Only rounds {', '.join(str(n) for _, n in round_rules)}")
 
     player_steamids: list[str] | None = None
     if queries:
@@ -140,6 +145,14 @@ def _parse_player_names(values: tuple[str, ...]) -> dict[str, str]:
 @click.option("--top", type=int, default=None, help="Max number of highlights")
 @click.option("--max-duration", type=float, default=None, help="Max total video length, seconds")
 @click.option("--min-kills", type=int, default=None, help="Min kills for a moment to qualify")
+@click.option(
+    "--round",
+    "rounds",
+    multiple=True,
+    metavar="N",
+    help="Only plays from these rounds (as numbered in the table): 13 or 13,15; repeatable. "
+    "Applied before ranking, so --top counts only these",
+)
 @click.option("--fps", type=int, default=None, help="Recording framerate")
 @click.option("--width", type=int, default=None, help="Recording width")
 @click.option("--height", type=int, default=None, help="Recording height")
@@ -269,6 +282,7 @@ def run(
     top: int | None,
     max_duration: float | None,
     min_kills: int | None,
+    rounds: tuple[str, ...],
     fps: int | None,
     width: int | None,
     height: int | None,
@@ -296,6 +310,12 @@ def run(
     timing_offset: float,
 ) -> None:
     """Parse DEMO, detect highlights, record them in-game and produce an MP4."""
+    from highlights.analysis.selection import parse_rounds
+
+    try:
+        round_rules = parse_rounds(rounds)
+    except ValueError as exc:
+        raise click.UsageError(str(exc))
     if (campath_hold or campath_align) and not cinematic:
         raise click.UsageError("--campath-hold/--campath-align need --cinematic")
     if campath_align and cinematic_mode != "splice":
@@ -341,7 +361,7 @@ def run(
 
     try:
         queries = [*([player] if player else []), *players]
-        sequences = _analyze(parsed, config, queries)
+        sequences = _analyze(parsed, config, queries, round_rules)
     except PlayerNotFound as exc:
         raise click.ClickException(str(exc))
 
