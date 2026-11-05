@@ -127,6 +127,8 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   clip (`review/<name>.jpg`), `review/index.html`, and a heuristic clipping check on cam-path parts only
   (`checked_ranges` from the JSON; dark mean or >= 75% flat 4x4 blocks on 64x36 gray frames at 4 fps, runs
   of >= 2) stored as `review` in the JSON. No pre-recording geometry check exists (no map collision data).
+- `ingame_check.py` — `highlights check-ingame DEMO`: records the best play as POV, cam path (hold), face
+  intro and spliced clip and writes `CHECKLIST.md` (what to see when) to confirm the unvalidated assumptions.
 - `video/vertical.py` — `--vertical blur|crop` (+ `--vertical-killfeed`): final 1080x1920 copy
   `<output>-vertical.mp4` via one FFmpeg filter pass after the concat (kill-feed crop region constants
   assume the default top-right position).

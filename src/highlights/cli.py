@@ -1040,6 +1040,52 @@ def review(directory: Path) -> None:
         raise click.ClickException(f"No clips with a .json report in {directory}")
 
 
+@main.command(name="check-ingame")
+@click.argument("demo", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--player", default=None, help="Use this player's best play (default: the demo's best play)")
+@click.option("-o", "--output-dir", type=click.Path(file_okay=False, path_type=Path), default=Path("ingame-check"))
+@click.option("--cmd", "extra_commands", multiple=True, metavar="COMMAND", help="Extra console command to check")
+@click.option(
+    "--player-name", "player_names", multiple=True, metavar="STEAMID=NAME", help="Rename a player to check renaming"
+)
+def check_ingame(
+    demo: Path, player: str | None, output_dir: Path, extra_commands: tuple[str, ...], player_names: tuple[str, ...]
+) -> None:
+    """Record one play as POV, cam path, face intro and spliced clip, plus CHECKLIST.md of what to
+    look for: confirms the in-game assumptions (kill feed, names, cam paths, alignment) in one run."""
+    from highlights.batch import DemoJob
+    from highlights.ingame_check import run_check
+    from highlights.recording.campaths import load_campaths, resolve_campaths_dir
+    from highlights.recording.recorder import RecordingSetupError
+
+    config = load_config()
+    config.recording.player_names.update(_parse_player_names(player_names))
+    config.recording.extra_commands = [*config.recording.extra_commands, *extra_commands]
+    work_dir = _resolve_work_dir(config, demo)
+    work_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        parsed = parse_demo(ensure_dem_file(demo, work_dir))
+    except DemoParseError as exc:
+        raise click.ClickException(str(exc))
+    steamids = None
+    if player:
+        try:
+            steamids = resolve_players(parsed, [player])
+        except PlayerNotFound as exc:
+            raise click.ClickException(str(exc))
+    candidates = eligible_moments(_scored_moments(parsed, config), config.selection, steamids)
+    candidates = [m for m in candidates if m.kill_count >= 1]
+    if not candidates:
+        raise click.ClickException("No play with a kill to check — try another demo or player")
+    moment = max(candidates, key=lambda m: (m.kill_count >= 2, m.score))
+    campaths = load_campaths(resolve_campaths_dir(config), parsed.map_name)
+    try:
+        checklist = run_check(DemoJob(demo.stem, demo, parsed, work_dir), config, moment, campaths, output_dir)
+    except RecordingSetupError as exc:
+        raise click.ClickException(str(exc))
+    console.print(f"[green]Done:[/green] clips and {checklist} in {output_dir}")
+
+
 @main.group(name="places")
 def places_group() -> None:
     """Build and inspect the per-map place lookup used to describe where plays happen."""

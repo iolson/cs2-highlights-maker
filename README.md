@@ -350,6 +350,14 @@ any folder of clips with their `.json` files:
   flagged in the log, the page and the JSON (`review.suspect_ranges`). It is a heuristic: it can
   miss a camera that sees through a wall and can flag a plain shot that is fine.
 
+## Checking the in-game assumptions (`highlights check-ingame`)
+
+Several behaviours can only be confirmed by watching a recording (kill-feed colours and filter,
+name replacement, `--cmd` commands, cam-path coordinates, held poses, the face intro, splice
+alignment). `highlights check-ingame DEMO [--player NAME] [--cmd ...] [--player-name ...]` records
+the best play as `01-pov.mp4`, `02-campath.mp4`, `03-face-intro.mp4` and `04-spliced.mp4` in
+`ingame-check/`, with `CHECKLIST.md` listing exactly what each clip should show and when.
+
 ## B-roll for pre-edit build-up (`highlights broll`)
 
 Records your cam paths on their own, with no highlight, so you have footage to open a clip with.
