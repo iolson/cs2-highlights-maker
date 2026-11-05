@@ -294,6 +294,20 @@ decision and records it in the JSON as `slowmo` per sequence (`--json-only` prev
   beats are dropped first when it would not fit), and the report's `video_time_seconds` and
   `beat_targets` include the retime.
 
+## Picking plays by round (`--round`)
+
+`top` and `batch` take `--round` to keep only plays from certain rounds, using the round numbers
+shown in the table. It is applied before ranking, so `--top` counts only those plays.
+
+```powershell
+highlights batch semi=a.dem final=b.dem --players "A,B" --round semi:1,2,10 --round final:6,7,13,15 -o out
+```
+
+- `13` or `13,15`: those rounds in every demo. `semi:2,10`: those rounds in the demo labelled
+  `semi` only (the label is the `LABEL=` of `batch`, or the file name without `.dem` for `top`).
+- It can be repeated and combined with `--players`, which is how you separate two players who
+  both had a play in the same round.
+
 ## B-roll for pre-edit build-up (`highlights broll`)
 
 Records your cam paths on their own, with no highlight, so you have footage to open a clip with.

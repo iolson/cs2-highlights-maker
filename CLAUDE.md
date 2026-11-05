@@ -15,7 +15,7 @@ Windows-only at the recording stage; analysis runs anywhere.
 .venv\Scripts\highlights update-tools                    # re-download latest HLAE/FFmpeg after a CS2 update
 ```
 
-`highlights top DEMO... [--players ..] [--top N]` pools and ranks moments across demos and
+`highlights top DEMO... [--players ..] [--top N] [--round N|DEMO:N]` pools and ranks moments across demos and
 prints one table only (no JSON, no recording); players missing from a demo skip that demo.
 
 CLI: click with a custom `DefaultRunGroup` — `highlights match.dem` resolves to
@@ -98,7 +98,7 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   >= `MIN_PRESENCE` 0.6 of the samples. Sequences have `campath` set and `cinematic_of` None (the camera player only seeds
   setup). Output `<label>-broll-<mode>-<n>.mp4/.json` (`kind: broll`, own small JSON, not the cotw report shape).
   No wall check; recording unvalidated in-game.
-- `batch.py` — `highlights batch DEMO... [--players/--team --names-file] --top N -o DIR`: global best-N
+- `batch.py` — `highlights batch DEMO... [--players/--team --names-file] [--round N|DEMO:N] --top N -o DIR`: global best-N
   (`selection.pick_rows`, shared with `top`) over all demos, one isolated sequence per moment
   (`build_sequences(..., merge=False)`), cinematic (always splice) + generated cams per demo, ONE
   recording session per demo (`record`), then each POV clip is copied to `<label>-<player slug>-<n>.mp4` and

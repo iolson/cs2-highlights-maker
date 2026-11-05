@@ -123,3 +123,18 @@ def test_batch_rejects_duplicate_labels_and_missing_names_file(batch_env):
     assert result.exit_code != 0 and "share the label" in result.output
     result = runner.invoke(cli.main, ["batch", str(files["a.dem"]), "--team", "Saltcrew", "-o", str(out)])
     assert result.exit_code != 0 and "--names-file" in result.output
+
+
+def test_round_rules_parse_and_filter():
+    import pytest
+
+    from highlights.analysis.selection import parse_rounds, round_allowed
+
+    rules = parse_rounds(["13", "semi-finals:2, 7"])
+    assert rules == [(None, 13), ("semi-finals", 2), ("semi-finals", 7)]
+    assert round_allowed(rules, "grand-finals", 12) and not round_allowed(rules, "grand-finals", 1)
+    assert round_allowed(rules, "Semi-Finals", 1) and not round_allowed(rules, "semi-finals", 2)
+    assert round_allowed([], "any", 0)
+    for bad in ("x", "0", ":3", "a:b"):
+        with pytest.raises(ValueError):
+            parse_rounds([bad])

@@ -13,7 +13,7 @@ import shutil
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from highlights.analysis.selection import build_sequences, eligible_moments, pick_rows
+from highlights.analysis.selection import build_sequences, eligible_moments, pick_rows, round_allowed
 from highlights.config import Config
 from highlights.demo.parser import DemoData
 from highlights.demo.players import PlayerNotFound, resolve_player
@@ -183,6 +183,7 @@ def run_batch(
     intro_cam: list[str] | None = None,
     downtime_cam: list[str] | None = None,
     tilt_mode: str = "off",
+    round_rules: list | None = None,
 ) -> list[Path]:
     """Select the best moments across all demos, then record each demo and write one clip + JSON per moment."""
     import click
@@ -204,7 +205,11 @@ def run_batch(
                 continue
             if missing:
                 info(f"{job.label}: not in this demo: {', '.join(missing)}")
-        rows.extend((job.demo, m) for m in eligible_moments(moments, config.selection, steamids))
+        rows.extend(
+            (job.demo, m)
+            for m in eligible_moments(moments, config.selection, steamids)
+            if round_allowed(round_rules or [], job.label, m.round_index)
+        )
     if not rows:
         raise click.ClickException("No highlights matched the criteria — try --min-kills 1 or check the demos")
 

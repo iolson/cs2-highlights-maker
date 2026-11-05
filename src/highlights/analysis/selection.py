@@ -28,6 +28,34 @@ def eligible_moments(
     return result
 
 
+RoundRule = tuple[str | None, int]  # (demo label or None for every demo, 1-based round number)
+
+
+def parse_rounds(values: Collection[str]) -> list[RoundRule]:
+    """`--round` values: "13", "13,15" or "semi-finals:13,15" (that demo only; the demo applies to the
+    bare numbers after it in the same value); repeats mix. Raises ValueError on anything else."""
+    rules: list[RoundRule] = []
+    for value in values:
+        scope: str | None = None
+        for part in (p.strip() for p in value.split(",")):
+            if not part:
+                continue
+            label, sep, number = part.rpartition(":")
+            if not number.strip().isdigit() or int(number) < 1 or (sep and not label.strip()):
+                raise ValueError(f"Bad --round value {part!r} — use a round number like 13 or DEMO:13")
+            if sep:
+                scope = label.strip().lower()
+            rules.append((scope, int(number)))
+    return rules
+
+
+def round_allowed(rules: list[RoundRule], label: str, round_index: int) -> bool:
+    """True when there are no rules or one matches this demo label and 0-based round index."""
+    return not rules or any(
+        number == round_index + 1 and (scope is None or scope == label.lower()) for scope, number in rules
+    )
+
+
 def _clip_bounds(moment: Moment, demo: DemoData, recording: RecordingConfig) -> tuple[int, int]:
     tickrate = demo.tickrate
     round_ = demo.round_at(moment.round_index)

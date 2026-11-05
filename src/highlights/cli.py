@@ -556,6 +556,14 @@ def _splice_cinematics(
 )
 @click.option("--top", type=int, default=None, help="Max number of highlights")
 @click.option("--max-duration", type=float, default=None, help="Max total video length, seconds")
+@click.option(
+    "--round",
+    "rounds",
+    multiple=True,
+    metavar="N|DEMO:N",
+    help="Only plays from these rounds (as numbered in the table): 13, 13,15 or semi-finals:13 for one "
+    "demo; repeatable. Applied before ranking, so --top counts only these",
+)
 @click.option("--min-kills", type=int, default=None, help="Min kills for a moment to qualify")
 @click.option(
     "--slow-mode",
@@ -571,8 +579,15 @@ def top(
     max_duration: float | None,
     min_kills: int | None,
     slow_mode: str,
+    rounds: tuple[str, ...],
 ) -> None:
     """Rank highlights across several DEMOs and print one table (no recording)."""
+    from highlights.analysis.selection import parse_rounds, round_allowed
+
+    try:
+        round_rules = parse_rounds(rounds)
+    except ValueError as exc:
+        raise click.UsageError(str(exc))
     config = load_config()
     for section, name, value in (
         (config.selection, "top", top),
@@ -612,7 +627,8 @@ def top(
                 continue
 
         for moment in eligible_moments(moments, config.selection, player_steamids):
-            rows.append((parsed, moment))
+            if round_allowed(round_rules, demo_path.stem, moment.round_index):
+                rows.append((parsed, moment))
 
     if failed == len(demos):
         raise click.ClickException("None of the demos could be read")
@@ -668,6 +684,14 @@ def top(
 )
 @click.option("--top", type=int, default=None, help="How many clips in total, best first across all demos")
 @click.option("--max-duration", type=float, default=None, help="Max summed clip length, seconds")
+@click.option(
+    "--round",
+    "rounds",
+    multiple=True,
+    metavar="N|DEMO:N",
+    help="Only plays from these rounds (as numbered in the table): 13, 13,15 or semi-finals:13 for one "
+    "demo; repeatable. Applied before ranking, so --top counts only these",
+)
 @click.option("--min-kills", type=int, default=None, help="Min kills for a moment to qualify")
 @click.option(
     "-o",
@@ -728,6 +752,7 @@ def batch(
     top: int | None,
     max_duration: float | None,
     min_kills: int | None,
+    rounds: tuple[str, ...],
     output_dir: Path,
     fps: int | None,
     width: int | None,
@@ -752,7 +777,13 @@ def batch(
     demos (optionally only the given players) are picked, then every demo is recorded once
     and each moment is written as <label>-<player>-<n>.mp4 with its own .json report.
     """
+    from highlights.analysis.selection import parse_rounds
     from highlights.batch import DemoJob, parse_demo_arg, run_batch, team_steamids
+
+    try:
+        round_rules = parse_rounds(rounds)
+    except ValueError as exc:
+        raise click.UsageError(str(exc))
 
     if teams and names_file is None:
         raise click.UsageError("--team needs --names-file")
@@ -821,6 +852,7 @@ def batch(
         intro_cam=intro_cam,
         downtime_cam=downtime_cam,
         tilt_mode=tilt_mode,
+        round_rules=round_rules,
     )
     if json_only:
         console.print(f"[green]Planned:[/green] reports written to {output_dir}")
