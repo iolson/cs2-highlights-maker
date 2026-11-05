@@ -67,7 +67,8 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   (`spatial.sample_pov_tracks`, 16 Hz, yaw/pitch) as an extra cinematic take per play
   (`Sequence.dynamic_cam`, `splice_segments`, report `cinematic.generated_cams`). Intro
   segments hold the style `Shot`, spiral round to just behind the head (`SWOOP_END`) and push
-  into the exact first-person eye pose (z + `EYE_HEIGHT` 64; crouching is not modelled) so the
+  into the exact first-person eye pose (z + `EYE_HEIGHT` 64; `sample_pov_tracks` lowers z by
+  `duck_amount` x `CROUCH_EYE_DROP` 18 so a crouching player's eye is 46) so the
   hand-off is seamless (`--intro-transition cut` → `Segment.swoop=False`: the intro holds the style shot to
   its end and hard-cuts like a down-time pass; report `transition`); down-time segments are one continuous hard-cut pass of the shot
   (>= `DOWNTIME_MIN` 2.5 s, <= `DOWNTIME_MAX` 12 s, the `MAX_DOWNTIME_PASSES` 2 longest per

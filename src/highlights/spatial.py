@@ -91,6 +91,7 @@ def _query_positions(
     # Different builds of demoparser2 may expose different optional props.
     # Keep the basic XYZ extraction working even if place hints are unavailable.
     prop_options = [
+        ["X", "Y", "Z", "yaw", "pitch", "last_place_name", "is_alive", "duck_amount"],
         ["X", "Y", "Z", "yaw", "pitch", "last_place_name", "is_alive"],
         ["X", "Y", "Z", "yaw", "pitch", "last_place_name"],
         ["X", "Y", "Z", "yaw", "pitch"],
@@ -149,6 +150,7 @@ def _query_positions(
             "pitch": _float(row.get("pitch")),
             "place_name_hint": place,
             "is_alive": is_alive,
+            "duck_amount": _float(row.get("duck_amount")),
         }
     return positions, properties, note
 
@@ -185,6 +187,7 @@ def sample_places(demo_path: Path, ticks: list[int]) -> list[tuple[float, float,
 
 
 TRACK_HZ = 16  # position samples per second for generated cams
+CROUCH_EYE_DROP = 18.0  # standing eye height (64) minus crouched eye height (46), world units
 
 
 def sample_pov_tracks(
@@ -192,6 +195,10 @@ def sample_pov_tracks(
     requests: dict[int, tuple[Sequence, list[tuple[float, float]]]],
 ) -> dict[int, dict[str, list[tuple[float, tuple[float, float, float], float, float]]]]:
     """Dense (clip seconds, xyz, yaw, pitch) tracks of each sequence's camera players.
+
+    z is the feet height minus the crouch drop (`duck_amount` x `CROUCH_EYE_DROP`, 0 when the demo
+    has no `duck_amount`), so adding the standing eye height (dyncams.EYE_HEIGHT) gives the player's
+    real eye height whether they stand or crouch.
 
     `requests` maps a sequence number to the sequence and the clip-second ranges
     that need data. One demo query serves every sequence; an unreadable demo gives
@@ -227,7 +234,8 @@ def sample_pov_tracks(
                 if not value or value.get("yaw") is None or value.get("pitch") is None:
                     continue
                 xyz = value["xyz"]
-                samples.append(((tick - sequence.start_tick) / rate, (xyz["x"], xyz["y"], xyz["z"]), value["yaw"], value["pitch"]))
+                drop = CROUCH_EYE_DROP * min(1.0, max(0.0, value.get("duck_amount") or 0.0))
+                samples.append(((tick - sequence.start_tick) / rate, (xyz["x"], xyz["y"], xyz["z"] - drop), value["yaw"], value["pitch"]))
             if samples:
                 tracks[sid] = samples
         result[number] = tracks
