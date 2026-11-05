@@ -294,6 +294,27 @@ decision and records it in the JSON as `slowmo` per sequence (`--json-only` prev
   beats are dropped first when it would not fit), and the report's `video_time_seconds` and
   `beat_targets` include the retime.
 
+## B-roll for pre-edit build-up (`highlights broll`)
+
+Records your cam paths on their own, with no highlight, so you have footage to open a clip with.
+Each clip is one cam path over a random stretch of live play (after freeze time), up to
+`--max-length` seconds (default 8):
+
+```powershell
+highlights broll season59-match07=C:\demos\match07.dem --mode empty   --count 4 -o broll
+highlights broll season59-match07=C:\demos\match07.dem --mode players --count 4 -o broll
+```
+
+- `--mode empty`: only windows where no living player is in view (establishing shots).
+- `--mode players`: only windows where at least one living player is in view for 60% or more of
+  the clip, so you get random people from that demo. The JSON lists who was in view.
+- Output: `<label>-broll-<mode>-<n>.mp4` plus a small `.json` (`"kind": "broll"`, round, cam path,
+  ticks, players in view) per clip. `--count` is per demo; several demos are recorded in turn.
+- `--seed N` repeats a random pick, `--cinematic-path NAME` restricts it to one cam path,
+  `--json-only` plans and writes the JSON without launching CS2 (the log lists each pick).
+- Visibility is a view-cone test on positions, with no wall check: a player behind a wall counts
+  as in view. That errs on the safe side for `empty` and can include a hidden player in `players`.
+
 ## Tilt-shift (`--tilt-mode auto|on`)
 
 Gives cam-path shots a miniature "tilt-shift" look: the middle band of the frame stays sharp,

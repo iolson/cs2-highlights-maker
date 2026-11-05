@@ -816,6 +816,99 @@ def batch(
         )
 
 
+@main.command()
+@click.argument("demos", nargs=-1, required=True)
+@click.option(
+    "--mode",
+    type=click.Choice(["empty", "players"]),
+    required=True,
+    help="empty: cam paths with nobody in view (establishing shots); players: cam paths with random "
+    "players from the demo in view",
+)
+@click.option("--count", type=click.IntRange(min=1), default=3, show_default=True, help="Clips per demo")
+@click.option("--max-length", type=float, default=8.0, show_default=True, help="Longest clip, seconds")
+@click.option("--seed", type=int, default=None, help="Repeat an earlier random pick")
+@click.option("--cinematic-path", default=None, help="Only use this cam path (file name without extension)")
+@click.option("-o", "--output-dir", type=click.Path(file_okay=False, path_type=Path), default=Path("broll-out"))
+@click.option("--fps", type=int, default=None, help="Recording framerate")
+@click.option("--width", type=int, default=None, help="Recording width")
+@click.option("--height", type=int, default=None, help="Recording height")
+@click.option("--crf", type=int, default=None, help="x264 CRF for recorded clips")
+@click.option("--cmd", "extra_commands", multiple=True, metavar="COMMAND", help="Extra console command run at every clip's start")
+@click.option("--json-only", is_flag=True, help="Plan and write the JSON files only, do not record")
+@click.option("--keep-clips", is_flag=True, help="Keep the temporary work files")
+def broll(
+    demos: tuple[str, ...],
+    mode: str,
+    count: int,
+    max_length: float,
+    seed: int | None,
+    cinematic_path: str | None,
+    output_dir: Path,
+    fps: int | None,
+    width: int | None,
+    height: int | None,
+    crf: int | None,
+    extra_commands: tuple[str, ...],
+    json_only: bool,
+    keep_clips: bool,
+) -> None:
+    """Cam-path-only B-roll clips from DEMOs (PATH or LABEL=PATH), for pre-edit build-up.
+
+    Records your cam paths over random stretches of live play and writes
+    <label>-broll-<mode>-<n>.mp4 + .json per clip. Needs cam paths for the map.
+    """
+    from highlights.batch import DemoJob, parse_demo_arg
+    from highlights.broll import run_broll
+    from highlights.recording.campaths import load_campaths, resolve_campaths_dir
+
+    config = load_config()
+    for name, value in (("fps", fps), ("width", width), ("height", height), ("crf", crf)):
+        if value is not None:
+            setattr(config.recording, name, value)
+    config.recording.extra_commands = [*config.recording.extra_commands, *extra_commands]
+
+    jobs = []
+    seen: set[str] = set()
+    for value in demos:
+        label, path = parse_demo_arg(value)
+        if not path.is_file():
+            raise click.UsageError(f"Demo not found: {path}")
+        if label in seen:
+            raise click.UsageError(f"Two demos share the label {label!r}; name them LABEL=PATH")
+        seen.add(label)
+        work_dir = _resolve_work_dir(config, path)
+        work_dir.mkdir(parents=True, exist_ok=True)
+        with console.status(f"Parsing {label}..."):
+            try:
+                parsed = parse_demo(ensure_dem_file(path, work_dir))
+            except DemoParseError as exc:
+                warn(f"{label}: {exc} — skipping this demo")
+                continue
+        jobs.append(DemoJob(label, path, parsed, work_dir))
+    if not jobs:
+        raise click.ClickException("None of the demos could be read")
+
+    campaths_dir = resolve_campaths_dir(config)
+
+    def campaths_for(map_name: str) -> list:
+        paths = load_campaths(campaths_dir, map_name)
+        if cinematic_path:
+            paths = [p for p in paths if p.name.lower() == cinematic_path.lower()]
+        if not paths:
+            warn(f"No cam paths for {map_name} in {campaths_dir}" + (f" named {cinematic_path!r}" if cinematic_path else ""))
+        return paths
+
+    started = time.monotonic()
+    written = run_broll(
+        jobs, config, campaths_for, mode, count, max_length, output_dir, seed, json_only=json_only, keep_clips=keep_clips
+    )
+    if json_only:
+        console.print(f"[green]Planned:[/green] reports written to {output_dir}")
+    else:
+        console.print(f"[green]Done:[/green] {len(written)} clip(s) in {output_dir} (took {int(time.monotonic() - started)}s)")
+
+
 @main.group(name="places")
 def places_group() -> None:
     """Build and inspect the per-map place lookup used to describe where plays happen."""

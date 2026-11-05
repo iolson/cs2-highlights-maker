@@ -40,7 +40,7 @@ def position_at(samples: Trajectory, t: float) -> Point | None:
     return tuple(x + (y - x) * w for x, y in zip(a, b))  # type: ignore[return-value]
 
 
-def _in_view(position: Point, forward: Point, fov: float, target: Point) -> bool:
+def _in_view(position: Point, forward: Point, fov: float, target: Point, margin: float = VIEW_MARGIN) -> bool:
     d = (target[0] - position[0], target[1] - position[1], target[2] - position[2])
     distance = dist(position, target)
     if not 50 < distance <= MAX_DISTANCE:
@@ -66,7 +66,7 @@ def _in_view(position: Point, forward: Point, fov: float, target: Point) -> bool
     half_v = atan(tan(half_h) / ASPECT)  # fov is the horizontal angle
     yaw_off = abs(atan2(dot(d, left), ahead))
     pitch_off = abs(atan2(dot(d, up), ahead))
-    return yaw_off <= half_h * VIEW_MARGIN and pitch_off <= half_v * VIEW_MARGIN
+    return yaw_off <= half_h * margin and pitch_off <= half_v * margin
 
 
 def _protected_windows(kill_times: list[float]) -> list[tuple[float, float]]:

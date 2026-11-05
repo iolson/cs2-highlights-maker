@@ -90,6 +90,13 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   `MAX_FRACTION` 0.5 of the plays; `on` = all. `splice_clip(..., tilt=True)` runs `tilt_filter()` (split, gblur, `blend`
   weighted by distance from the centre line, `eq` saturation) on the cinematic input before the overlay. Look constants
   are untuned.
+- `broll.py` — `highlights broll DEMO... --mode empty|players [--count --max-length --seed --cinematic-path]`: cam-path-only
+  clips for pre-edit build-up. `plan_demo_broll` randomly tries (round, start, path) windows in the live phase, with
+  all players' positions sampled every 0.5 s in ONE `_query_positions` call (`sample_players`, injectable for tests);
+  `empty` = nobody alive in view (`splice_plan._in_view` with `EMPTY_MARGIN` 1.15), `players` = in view for
+  >= `MIN_PRESENCE` 0.6 of the samples. Sequences have `campath` set and `cinematic_of` None (the camera player only seeds
+  setup). Output `<label>-broll-<mode>-<n>.mp4/.json` (`kind: broll`, own small JSON, not the cotw report shape).
+  No wall check; recording unvalidated in-game.
 - `batch.py` — `highlights batch DEMO... [--players/--team --names-file] --top N -o DIR`: global best-N
   (`selection.pick_rows`, shared with `top`) over all demos, one isolated sequence per moment
   (`build_sequences(..., merge=False)`), cinematic (always splice) + generated cams per demo, ONE
