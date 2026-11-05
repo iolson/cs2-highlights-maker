@@ -121,7 +121,10 @@ class Shot:
 def shot(style: str, u: float) -> Shot:
     if style == "face":  # tight close-up: a head is ~12 units tall, so this fills most of the frame
         # radius = how far the camera is from the head (units): smaller = tighter; slow push-in while held.
-        return Shot(_lerp(8.0, -10.0, u), _lerp(26.0, 20.0, u), -3.0, -3.0, 70.0)
+        # angle: front-left three-quarter (positive = the player's left). The rifle points forward on their
+        # right, so a camera straight in front sits inside it. height/target_dz: a little above the head
+        # centre, looking slightly down, so the chin and chest stay out of frame.
+        return Shot(_lerp(36.0, 28.0, u), _lerp(26.0, 21.0, u), 8.0, 6.0, 70.0)
     if style == "profile":
         return Shot(_lerp(-95.0, -80.0, u), _lerp(70.0, 58.0, u), 2.0, 0.0, 85.0)
     if style == "gun":  # low front three-quarter on the weapon side, weapon and torso in frame
@@ -178,8 +181,10 @@ def segment_pose(segment: Segment, eye: Pose, t: float) -> Pose:
     s = (u - OPENER_HOLD) / (1 - OPENER_HOLD)
     sw = smoothstep(s)
     a, b = shot(segment.style, 1.0), SWOOP_END
+    # Swing round the shorter way (a shot on the player's left ends behind them at +180, not -180).
+    end_angle = b.angle + 360.0 if b.angle - a.angle < -180.0 else b.angle - 360.0 if b.angle - a.angle > 180.0 else b.angle
     mix = Shot(
-        _lerp(a.angle, b.angle, sw),
+        _lerp(a.angle, end_angle, sw),
         _lerp(a.radius, b.radius, sw),
         _lerp(a.height, b.height, sw),
         _lerp(a.target_dz, b.target_dz, sw),

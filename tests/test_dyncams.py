@@ -185,4 +185,13 @@ def test_face_is_a_tight_close_up_of_the_head():
     for u in (0.0, 0.5, 1.0):
         face = shot("face", u)
         assert 16 <= face.radius <= 30 and face.fov <= 75  # a head is ~12 units: this fills most of the frame
-        assert abs(face.angle) < 15  # in front of the face, not to the side
+        assert 15 <= face.angle <= 50  # front-left three-quarter: off the rifle's line (their right), still facing them
+
+
+def test_face_swoop_goes_round_the_players_left_and_never_crosses_the_front():
+    intro = Segment(0.0, 3.5, "intro", "face")
+    f = (math.cos(math.radians(EYE.yaw)), math.sin(math.radians(EYE.yaw)))
+    left = (-f[1], f[0])  # the player's left (positive angle)
+    poses = [segment_pose(intro, EYE, 3.5 * (0.55 + 0.3 * i / 20)) for i in range(21)]  # the swoop part
+    sides = [(p.pos[0] - EYE.pos[0]) * left[0] + (p.pos[1] - EYE.pos[1]) * left[1] for p in poses]
+    assert all(side > -1 for side in sides)  # stays on the left until it is behind the head
