@@ -51,6 +51,44 @@ class Death:
     victim_steamid: str
 
 
+@dataclass(frozen=True)
+class Blind:
+    """A player blinded by a flashbang (player_blind); `entity` is the flashbang's entity id."""
+
+    tick: int
+    attacker_steamid: str
+    victim_steamid: str
+    duration: float
+    entity: int
+
+
+@dataclass(frozen=True)
+class NadeHit:
+    """Damage dealt by an HE grenade or fire (player_hurt with a grenade weapon)."""
+
+    tick: int
+    attacker_steamid: str
+    victim_steamid: str
+    weapon: str  # "hegrenade", "inferno", "molotov", "incgrenade"
+    damage: int
+
+
+@dataclass(frozen=True)
+class Detonation:
+    """An HE or flash going off, or fire starting (inferno_startburn); `entity` is the projectile's
+    entity id for HE/flash (the fire has its own id, so molotovs are matched by thrower and time)."""
+
+    tick: int
+    kind: str  # "he", "flash", "fire"
+    thrower_steamid: str
+    entity: int
+    pos: tuple[float, float, float]
+
+
+NADE_WEAPONS = ("hegrenade", "inferno", "molotov", "incgrenade")
+DETONATION_EVENTS = {"hegrenade_detonate": "he", "flashbang_detonate": "flash", "inferno_startburn": "fire"}
+
+
 @dataclass
 class DemoData:
     path: Path
@@ -64,6 +102,9 @@ class DemoData:
     rosters: dict[int, dict[str, str]] = field(default_factory=dict)  # round -> {steamid: side}
     # round -> {steamid: equipment value at freeze end} (empty when the demo lacks the prop)
     equipment: dict[int, dict[str, int]] = field(default_factory=dict)
+    blinds: list[Blind] = field(default_factory=list)  # flashbang blinds after match start
+    nade_hits: list[NadeHit] = field(default_factory=list)  # HE / fire damage after match start
+    detonations: list[Detonation] = field(default_factory=list)  # HE / flash pops and fires starting
     match_start_tick: int = 0
     last_tick: int = 0
 
@@ -333,6 +374,7 @@ def _parse_demo(path: Path) -> DemoData:
     ) + int(10 * tickrate)
 
     rosters, equipment = _build_rosters(parser, rounds)
+    blinds, nade_hits, detonations = _grenade_events(parser, match_start_tick)
     slots = get_slots(parser, rounds[0].freeze_end_tick + 16)
 
     return DemoData(
@@ -346,9 +388,67 @@ def _parse_demo(path: Path) -> DemoData:
         slots=slots,
         rosters=rosters,
         equipment=equipment,
+        blinds=blinds,
+        nade_hits=nade_hits,
+        detonations=detonations,
         match_start_tick=match_start_tick,
         last_tick=last_tick,
     )
+
+
+def _grenade_events(
+    parser: DemoParser, match_start_tick: int
+) -> tuple[list[Blind], list[NadeHit], list[Detonation]]:
+    """Flashbang blinds, grenade damage and detonations (used to find grenades worth a grenade cam)."""
+    blinds: list[Blind] = []
+    df = _safe_event(parser, "player_blind")
+    for _, row in df.iterrows():
+        tick = int(row["tick"])
+        if tick < match_start_tick:
+            continue
+        blinds.append(
+            Blind(
+                tick=tick,
+                attacker_steamid=str(_col(row, "attacker_steamid", "") or ""),
+                victim_steamid=str(_col(row, "user_steamid", "") or ""),
+                duration=float(_col(row, "blind_duration", 0.0) or 0.0),
+                entity=int(_col(row, "entityid", -1) or -1),
+            )
+        )
+    hits: list[NadeHit] = []
+    df = _safe_event(parser, "player_hurt")
+    if not df.empty and "weapon" in df.columns:
+        for _, row in df[df["weapon"].isin(NADE_WEAPONS)].iterrows():
+            tick = int(row["tick"])
+            if tick < match_start_tick:
+                continue
+            hits.append(
+                NadeHit(
+                    tick=tick,
+                    attacker_steamid=str(_col(row, "attacker_steamid", "") or ""),
+                    victim_steamid=str(_col(row, "user_steamid", "") or ""),
+                    weapon=str(row["weapon"]),
+                    damage=int(_col(row, "dmg_health", 0) or 0),
+                )
+            )
+    detonations: list[Detonation] = []
+    for event, kind in DETONATION_EVENTS.items():
+        df = _safe_event(parser, event)
+        for _, row in df.iterrows():
+            tick = int(row["tick"])
+            if tick < match_start_tick:
+                continue
+            detonations.append(
+                Detonation(
+                    tick=tick,
+                    kind=kind,
+                    thrower_steamid=str(_col(row, "user_steamid", "") or ""),
+                    entity=int(_col(row, "entityid", -1) or -1),
+                    pos=(float(_col(row, "x", 0.0)), float(_col(row, "y", 0.0)), float(_col(row, "z", 0.0))),
+                )
+            )
+    detonations.sort(key=lambda d: d.tick)
+    return blinds, hits, detonations
 
 
 def _build_rosters(

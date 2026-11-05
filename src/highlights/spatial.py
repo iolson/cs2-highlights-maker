@@ -234,6 +234,61 @@ def sample_pov_tracks(
     return result
 
 
+GRENADE_KINDS = {
+    "CHEGrenadeProjectile": "he",
+    "CFlashbangProjectile": "flash",
+    "CMolotovProjectile": "molotov",  # molotov and incendiary share it
+    "CSmokeGrenadeProjectile": "smoke",
+    "CDecoyProjectile": "decoy",
+}
+FLIGHT_GAP_TICKS = 4  # entity ids are reused: a gap this long between samples starts a new flight
+
+
+def grenade_flights(demo: DemoData, wanted: dict[str, list[tuple[int, int]]]) -> list[dict]:
+    """Flights of grenades thrown by `wanted` players inside their tick ranges ({steamid: [(first, last)]}).
+
+    Each flight: {"kind", "thrower", "entity", "start_tick", "end_tick", "points": [(tick, (x, y, z))]};
+    start is the first tick the projectile exists (out of the hand), end the last (detonation or
+    landing). One full grenade query per call (slow and memory-hungry: several seconds and a few
+    GB on a long demo), so call it once per demo and only when needed. An unreadable demo gives [].
+    """
+    if not wanted:
+        return []
+    try:
+        frame = DemoParser(str(demo.path)).parse_grenades()
+    except BaseException as exc:
+        if not is_parser_error(exc):
+            raise
+        return []
+    if frame is None or frame.empty:
+        return []
+    frame = frame.dropna(subset=["x", "y", "z"])
+    frame = frame[frame["steamid"].astype(str).isin(set(wanted))]
+    flights: list[dict] = []
+    for (entity, thrower), rows in frame.groupby(["grenade_entity_id", "steamid"], sort=False):
+        thrower = _steamid(thrower)
+        rows = rows.sort_values("tick")
+        ticks = rows["tick"].to_numpy()
+        points = list(zip(ticks.tolist(), zip(rows["x"].tolist(), rows["y"].tolist(), rows["z"].tolist())))
+        kinds = rows["grenade_type"].tolist()
+        start = 0
+        for i in range(1, len(points) + 1):
+            if i < len(points) and points[i][0] - points[i - 1][0] <= FLIGHT_GAP_TICKS:
+                continue
+            first, last = points[start][0], points[i - 1][0]
+            if any(a <= first and last <= b for a, b in wanted.get(thrower, [])):
+                flights.append({
+                    "kind": GRENADE_KINDS.get(str(kinds[start]), "other"),
+                    "thrower": thrower,
+                    "entity": int(entity),
+                    "start_tick": int(first),
+                    "end_tick": int(last),
+                    "points": [(int(t), (float(x), float(y), float(z))) for t, (x, y, z) in points[start:i]],
+                })
+            start = i
+    return sorted(flights, key=lambda f: f["start_tick"])
+
+
 def _build_zones(engagements: list[dict]) -> list[dict]:
     """Cluster featured kills in timeline order. Do not conflate map floors."""
     groups: list[list[dict]] = []

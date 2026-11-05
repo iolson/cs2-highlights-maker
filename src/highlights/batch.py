@@ -119,6 +119,7 @@ def plan_demo(
     intro_cam: list[str] | None,
     downtime_cam: list[str] | None,
     tilt_mode: str = "off",
+    grenade_cam: str = "off",
 ) -> tuple[list[Sequence], list[ClipPlan]]:
     """Every sequence to record for this demo (POV plus cinematic/generated takes) and the clips they make."""
     from highlights import cli
@@ -160,6 +161,14 @@ def plan_demo(
 
         sequences, spatial = add_dynamic_sequences(
             sequences, spatial, demo, sample_pov_tracks, job.work_dir / "dyncams", intro_cam, downtime_cam
+        )
+
+    if grenade_cam != "off":
+        from highlights.recording.grenade_cam import add_grenade_sequences
+        from highlights.spatial import grenade_flights
+
+        sequences, spatial = add_grenade_sequences(
+            sequences, spatial, demo, grenade_flights, job.work_dir / "dyncams", grenade_cam
         )
 
     if tilt_mode != "off":
@@ -220,6 +229,7 @@ def run_batch(
     buildup_length: float = 6.0,
     review: bool = True,
     calibrate: bool = True,
+    grenade_cam: str = "off",
 ) -> list[Path]:
     """Select the best moments across all demos, then record each demo and write one clip + JSON per moment."""
     import click
@@ -286,7 +296,7 @@ def run_batch(
             continue
         info(f"[bold]{job.label}[/bold]: {len(mine)} clip(s)")
         sequences, clips = plan_demo(
-            job, mine, config, cinematic, cinematic_path, hold, align, intro_cam, downtime_cam, tilt_mode
+            job, mine, config, cinematic, cinematic_path, hold, align, intro_cam, downtime_cam, tilt_mode, grenade_cam
         )
         for clip in clips:
             report = output_dir / f"{clip.name}.json"

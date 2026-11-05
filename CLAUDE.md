@@ -75,6 +75,15 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   real takes first, generated ones on top; append-mode takes stay in the list. Styles are
   offset estimates (constants/`style_pose`), no wall check, `POV_FOV` and in-game model
   visibility unvalidated. Not combinable with `--suggest-cinematic` (renumbering).
+- `recording/grenade_cam.py` — `--grenade-cam auto|all` (run and batch): `spatial.grenade_flights` (the one
+  `parse_grenades` query; projectile samples per tick, split into flights at tick gaps because entity ids are
+  reused) → `detonate` cuts each flight at its detonation (`DemoData.detonations` from hegrenade_detonate /
+  flashbang_detonate by entity id, inferno_startburn by thrower + time: the projectile entity outlives the
+  pop by seconds) → `grenade_worth` (HE/fire kill or hits on `MIN_HURT` enemies from `nade_hits`, flash blind
+  `MIN_BLIND` on an enemy killed within `FLASH_KILL_WINDOW`, matched by the flash's entity id in `blinds`) →
+  `plan_clip` (thrower = active camera, inside the clip incl. `HOLD`, non-overlapping) → `follow_keyframes`
+  (behind/above along the smoothed flight, hold on `burst`) → one take per clip via
+  `dyn_sequences.insert_takes` (after the other takes, so it is spliced on top). No wall check; unvalidated.
 - `routes.py` — `clip_route(sequence, spatial)`: the places the POV player moves through
   (from the place hints already sampled in spatial metadata) and where each selected kill
   landed; stored as `spatial.route` and shown as the "Where" column of the highlights table.

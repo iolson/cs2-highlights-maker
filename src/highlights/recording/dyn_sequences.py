@@ -117,6 +117,14 @@ def add_dynamic_sequences(
             cinematic_candidates=None,
         )
 
+    return insert_takes(sequences, spatial_by_sequence, new_for)
+
+
+def insert_takes(
+    sequences: list[Sequence], spatial_by_sequence: dict[int, dict], new_for: dict[int, Sequence]
+) -> tuple[list[Sequence], dict[int, dict]]:
+    """Put each new take (keyed by its POV's number) after that POV's existing takes, renumber
+    everything 1..N and re-key the spatial data (new takes share their POV's)."""
     result: list[Sequence] = []
     spatial: dict[int, dict] = {}
     new_number: dict[int, int] = {}

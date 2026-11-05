@@ -237,6 +237,13 @@ def _parse_player_names(values: tuple[str, ...]) -> dict[str, str]:
     "(same styles as --intro-cam)",
 )
 @click.option(
+    "--grenade-cam",
+    type=click.Choice(["off", "auto", "all"]),
+    default="off",
+    help="Follow the POV player's grenades with a camera just behind them, from release to detonation. "
+    "auto: only grenades that matter (HE/fire kill or hits on 2+, flash assist); all: every HE, flash and molotov",
+)
+@click.option(
     "--vertical",
     type=click.Choice(["blur", "crop"]),
     default=None,
@@ -283,6 +290,7 @@ def run(
     campath_align: bool,
     intro_cam: list[str] | None,
     downtime_cam: list[str] | None,
+    grenade_cam: str,
     vertical: str | None,
     vertical_killfeed: bool,
     timing_offset: float,
@@ -298,8 +306,8 @@ def run(
         raise click.UsageError("--vertical-killfeed needs --vertical blur")
     if suggest_cinematic and cinematic:
         raise click.UsageError("--suggest-cinematic is for previewing; use it without --cinematic")
-    if suggest_cinematic and (intro_cam or downtime_cam):
-        raise click.UsageError("--suggest-cinematic cannot be combined with --intro-cam/--downtime-cam")
+    if suggest_cinematic and (intro_cam or downtime_cam or grenade_cam != "off"):
+        raise click.UsageError("--suggest-cinematic cannot be combined with --intro-cam/--downtime-cam/--grenade-cam")
     config = load_config()
     for section, name, value in (
         (config.selection, "top", top),
@@ -394,6 +402,15 @@ def run(
             intro_cam,
             downtime_cam,
         )
+
+    if grenade_cam != "off":
+        from highlights.recording.grenade_cam import add_grenade_sequences
+        from highlights.spatial import grenade_flights
+
+        with console.status("Reading grenade flights..."):
+            sequences, spatial = add_grenade_sequences(
+                sequences, spatial, parsed, grenade_flights, work_dir / "dyncams", grenade_cam
+            )
 
     if tilt_mode != "off":
         from highlights.analysis.tilt import plan_sequences as plan_tilt
@@ -768,6 +785,13 @@ def top(
     callback=lambda ctx, param, value: _parse_cam_styles(value),
     help="Cut a generated cam into the down time between kills (same styles as --intro-cam)",
 )
+@click.option(
+    "--grenade-cam",
+    type=click.Choice(["off", "auto", "all"]),
+    default="off",
+    help="Follow the POV player's grenades with a camera just behind them, from release to detonation. "
+    "auto: only grenades that matter (HE/fire kill or hits on 2+, flash assist); all: every HE, flash and molotov",
+)
 @click.option("--json-only", is_flag=True, help="Select and plan only: print the table, write the JSON files, record nothing")
 @click.option("--keep-clips", is_flag=True, help="Keep each demo's work dir with the raw clips")
 @click.option("--resume", is_flag=True, help="Skip clips whose <name>.mp4 is already in the output folder")
@@ -813,6 +837,7 @@ def batch(
     campath_align: bool,
     intro_cam: list[str] | None,
     downtime_cam: list[str] | None,
+    grenade_cam: str,
     json_only: bool,
     keep_clips: bool,
     timing_offset: float,
@@ -914,6 +939,7 @@ def batch(
         buildup_length=buildup_length,
         review=not no_review,
         calibrate=not no_kill_sync,
+        grenade_cam=grenade_cam,
     )
     if json_only:
         console.print(f"[green]Planned:[/green] reports written to {output_dir}")

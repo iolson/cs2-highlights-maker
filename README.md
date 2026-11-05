@@ -296,6 +296,24 @@ indoors), so review each run. The offsets are estimates, tuned in
 player's model is drawn while a cam path is active, the cam path fov value, and the
 hand-off to the POV.
 
+## Grenade cam (`--grenade-cam auto|all`)
+
+On `run` and `batch`, a camera rides just behind a grenade the POV player throws, from the moment
+it leaves the hand until it goes off, then holds on the explosion, flash or fire for a moment
+before cutting back to first person. It is cut into the clip like the generated cams (on top of
+them), so the clip keeps its length and kill times.
+
+- `auto` follows only grenades that matter: an HE or molotov that kills, or that damages two or
+  more enemies, and a flash that blinds an enemy (1 s or more) who dies within 3 s. `all` follows
+  every HE, flash and molotov the POV player throws in the clip. Smokes and decoys are never followed.
+- The report lists each one under `cinematic.generated_cams` (`kind: grenade`, the grenade type and
+  why it was picked, e.g. `HE kill`, `flash assist`, `molotov hits 2`).
+- Reading the grenade flights takes a few seconds and a few GB of memory per demo, so it only
+  happens with this option.
+- Camera distance and height are estimates in `src/highlights/recording/grenade_cam.py` (`FOLLOW`,
+  `RISE`, `LOOK_AHEAD`, `HOLD`). There is no wall check: a grenade bouncing off a wall can pull the
+  camera into it; the review after `batch` flags dark or featureless frames. Not validated in-game.
+
 ## Slow-motion (`--slow-mode auto`)
 
 `highlights top a.dem b.dem --slow-mode auto` adds a "Slow-mo" column showing which clips would
