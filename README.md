@@ -57,6 +57,10 @@ highlights batch season59-match07=a.dem season59-match08=b.dem \
 - Selection is global but recording is one game session per demo. A demo that fails to record is
   skipped with a warning and the rest continue. `--json-only` prints the table and writes the
   JSONs without recording.
+- `slowmo_suggestion` in each JSON is the kill most worth a slow-motion beat (the same pick as
+  `--slow-mode auto`, best third of the clips): `kill_tick`, `clip_time_seconds`, the window
+  (`start_seconds`/`end_seconds`), `speed`, `reason`, `"applied": false` (null when none). The
+  table's "Slow-mo" column shows them.
 
 ### Place names
 

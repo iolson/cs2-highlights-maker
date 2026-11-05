@@ -174,6 +174,27 @@ def plan_demo(
     return sequences, clips
 
 
+def slowmo_hint(pick, pov: Sequence, tickrate: float) -> dict | None:
+    """The suggested slow-motion beat of a clip, for the compilation step (never applied here)."""
+    from highlights.analysis.slowmo import SPEED, window
+
+    if pick is None:
+        return None
+    kill_seconds = (pick.kill.tick - pov.start_tick) / tickrate
+    start, end = window(kill_seconds, pov.duration_seconds(tickrate))
+    return {
+        "kill_tick": pick.kill.tick,
+        "clip_time_seconds": round(kill_seconds, 3),
+        "start_seconds": start,
+        "end_seconds": end,
+        "speed": SPEED,
+        "worth": pick.worth,
+        "reason": pick.reason,
+        "victim": pick.kill.victim_name,
+        "applied": False,
+    }
+
+
 def run_batch(
     jobs: list[DemoJob],
     config: Config,
@@ -235,8 +256,15 @@ def run_batch(
         if not picked:
             raise click.ClickException("--pick/--exclude left no clips")
         total = sum(clip_seconds(m, d, config.recording) for d, m in picked)
+    from highlights.analysis.slowmo import best_kill, choose
+
     names = clip_names([(label_of[id(demo)], moment) for demo, moment in picked])
-    print_top_table(picked, clips=names, labels=[label_of[id(demo)] for demo, _ in picked], numbers=numbers)
+    slow_picks = choose([best_kill(moment) for _, moment in picked])
+    slow_of = {id(moment): pick for (_, moment), pick in zip(picked, slow_picks)}
+    slow_cells = ["" if p is None else f"{p.reason} → {p.kill.victim_name}" for p in slow_picks]
+    print_top_table(
+        picked, slow_cells, clips=names, labels=[label_of[id(demo)] for demo, _ in picked], numbers=numbers
+    )
     info(f"{len(picked)} clips, about {total:.0f}s in total, into {output_dir}")
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -250,7 +278,11 @@ def run_batch(
             job, mine, config, cinematic, cinematic_path, hold, align, intro_cam, downtime_cam, tilt_mode
         )
         for clip in clips:
-            write_report(output_dir / f"{clip.name}.json", job.demo, clip.group, spatial_by_sequence=clip.spatial)
+            report = output_dir / f"{clip.name}.json"
+            write_report(report, job.demo, clip.group, spatial_by_sequence=clip.spatial)
+            data = json.loads(report.read_text(encoding="utf-8"))
+            data["slowmo_suggestion"] = slowmo_hint(slow_of.get(id(clip.pov.moments[0])), clip.pov, job.demo.tickrate)
+            report.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
         if json_only:
             continue
         written += _record_demo(
