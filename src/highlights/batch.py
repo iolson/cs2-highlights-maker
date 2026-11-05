@@ -120,6 +120,7 @@ def plan_demo(
     downtime_cam: list[str] | None,
     tilt_mode: str = "off",
     grenade_cam: str = "off",
+    intro_transition: str = "swoop",
 ) -> tuple[list[Sequence], list[ClipPlan]]:
     """Every sequence to record for this demo (POV plus cinematic/generated takes) and the clips they make."""
     from highlights import cli
@@ -160,7 +161,8 @@ def plan_demo(
         from highlights.recording.dyn_sequences import add_dynamic_sequences
 
         sequences, spatial = add_dynamic_sequences(
-            sequences, spatial, demo, sample_pov_tracks, job.work_dir / "dyncams", intro_cam, downtime_cam
+            sequences, spatial, demo, sample_pov_tracks, job.work_dir / "dyncams", intro_cam, downtime_cam,
+            intro_transition,
         )
 
     if grenade_cam != "off":
@@ -230,6 +232,7 @@ def run_batch(
     review: bool = True,
     calibrate: bool = True,
     grenade_cam: str = "off",
+    intro_transition: str = "swoop",
 ) -> list[Path]:
     """Select the best moments across all demos, then record each demo and write one clip + JSON per moment."""
     import click
@@ -296,7 +299,8 @@ def run_batch(
             continue
         info(f"[bold]{job.label}[/bold]: {len(mine)} clip(s)")
         sequences, clips = plan_demo(
-            job, mine, config, cinematic, cinematic_path, hold, align, intro_cam, downtime_cam, tilt_mode, grenade_cam
+            job, mine, config, cinematic, cinematic_path, hold, align, intro_cam, downtime_cam, tilt_mode, grenade_cam,
+            intro_transition,
         )
         for clip in clips:
             report = output_dir / f"{clip.name}.json"

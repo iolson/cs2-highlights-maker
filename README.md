@@ -279,7 +279,9 @@ of the same demo). `gun` is a wide shot 1-2 m from the player; `face` is a close
 
 - `--intro-cam STYLE` opens every clip (up to 3.5 s, shorter when a kill comes early) on
   the style's shot, then spirals round to just behind the player and pushes into the exact
-  first-person eye pose, so the cut to the POV has no jump.
+  first-person eye pose, so the cut to the POV has no jump. With `--intro-transition cut` it
+  stays on the chosen shot for the whole intro (slow drift only) and hard-cuts to the POV
+  instead; `swoop` is the default. The report shows it as `transition` on the intro cut.
 - `--downtime-cam STYLE` fills the long gaps between kills with one continuous pass of the
   style's shot (hard cut in and out, no swooping back to the POV). Only gaps of at least
   2.5 s count, each pass is up to 12 s, and at most the 2 longest gaps per clip are used, so

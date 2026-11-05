@@ -68,7 +68,8 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   (`Sequence.dynamic_cam`, `splice_segments`, report `cinematic.generated_cams`). Intro
   segments hold the style `Shot`, spiral round to just behind the head (`SWOOP_END`) and push
   into the exact first-person eye pose (z + `EYE_HEIGHT` 64; crouching is not modelled) so the
-  hand-off is seamless; down-time segments are one continuous hard-cut pass of the shot
+  hand-off is seamless (`--intro-transition cut` → `Segment.swoop=False`: the intro holds the style shot to
+  its end and hard-cuts like a down-time pass; report `transition`); down-time segments are one continuous hard-cut pass of the shot
   (>= `DOWNTIME_MIN` 2.5 s, <= `DOWNTIME_MAX` 12 s, the `MAX_DOWNTIME_PASSES` 2 longest per
   clip). One style per kind per clip. Paths are
   rebased to the first recorded frame, so a path whose first segment starts late holds that

@@ -54,6 +54,7 @@ class Segment:
     end: float
     kind: str  # "intro" or "downtime"
     style: str = ""
+    swoop: bool = True  # intro only: ease into the first-person view; False = hold the shot, hard cut
 
 
 # ---- tracks ----------------------------------------------------------------
@@ -165,10 +166,11 @@ def segment_pose(segment: Segment, eye: Pose, t: float) -> Pose:
 
     Intro: holds the style shot, then spirals round to just behind the player's head
     and pushes into the exact first-person `eye` pose at the end (no jump on the cut to
-    the POV). Down time: one continuous pass of the style shot, hard-cut in and out."""
+    the POV); with `swoop` off it holds the shot to the end and hard-cuts to the POV like
+    a down-time pass. Down time: one continuous pass of the style shot, hard-cut in and out."""
     u = (t - segment.start) / (segment.end - segment.start)
     u = min(1.0, max(0.0, u))
-    if segment.kind != "intro":
+    if segment.kind != "intro" or not segment.swoop:
         return style_pose(segment.style, eye, u)
     if u <= OPENER_HOLD:
         return style_pose(segment.style, eye, u / OPENER_HOLD)

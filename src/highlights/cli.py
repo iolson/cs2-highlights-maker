@@ -243,6 +243,13 @@ def _parse_player_names(values: tuple[str, ...]) -> dict[str, str]:
     "heli, a comma-separated list, or random",
 )
 @click.option(
+    "--intro-transition",
+    type=click.Choice(["swoop", "cut"]),
+    default="swoop",
+    help="How --intro-cam hands over to the POV: swoop = ease round behind the head into first person; "
+    "cut = hold the chosen shot for the whole intro, then a hard cut",
+)
+@click.option(
     "--downtime-cam",
     default=None,
     callback=lambda ctx, param, value: _parse_cam_styles(value),
@@ -303,6 +310,7 @@ def run(
     campath_hold: bool,
     campath_align: bool,
     intro_cam: list[str] | None,
+    intro_transition: str,
     downtime_cam: list[str] | None,
     grenade_cam: str,
     vertical: str | None,
@@ -421,6 +429,7 @@ def run(
             work_dir / "dyncams",
             intro_cam,
             downtime_cam,
+            intro_transition,
         )
 
     if grenade_cam != "off":
@@ -800,6 +809,13 @@ def top(
     help="Open every clip with a generated cam: face, profile, gun, tps, heli, a list, or random",
 )
 @click.option(
+    "--intro-transition",
+    type=click.Choice(["swoop", "cut"]),
+    default="swoop",
+    help="How --intro-cam hands over to the POV: swoop = ease round behind the head into first person; "
+    "cut = hold the chosen shot for the whole intro, then a hard cut",
+)
+@click.option(
     "--downtime-cam",
     default=None,
     callback=lambda ctx, param, value: _parse_cam_styles(value),
@@ -856,6 +872,7 @@ def batch(
     campath_hold: bool,
     campath_align: bool,
     intro_cam: list[str] | None,
+    intro_transition: str,
     downtime_cam: list[str] | None,
     grenade_cam: str,
     json_only: bool,
@@ -948,6 +965,7 @@ def batch(
         hold=campath_hold or campath_align,
         align=campath_align,
         intro_cam=intro_cam,
+        intro_transition=intro_transition,
         downtime_cam=downtime_cam,
         tilt_mode=tilt_mode,
         round_rules=round_rules,

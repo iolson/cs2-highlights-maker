@@ -49,6 +49,7 @@ def add_dynamic_sequences(
     out_dir: Path,
     intro: list[str] | None,
     downtime: list[str] | None,
+    intro_transition: str = "swoop",
 ) -> tuple[list[Sequence], dict[int, dict]]:
     """Follow each POV sequence (and its real cinematic takes) with one generated-cam
     take whose splice segments are the opener and/or down-time cuts.
@@ -83,7 +84,7 @@ def add_dynamic_sequences(
             "intro": pick_style(intro, sequence.start_tick) if intro else "",
             "downtime": pick_style(downtime, sequence.start_tick + 1) if downtime else "",
         }
-        segments = [replace(seg, style=styles[seg.kind]) for seg in base]
+        segments = [replace(seg, style=styles[seg.kind], swoop=intro_transition == "swoop") for seg in base]
         if segments:
             plans[sequence.number] = segments
 
@@ -112,7 +113,14 @@ def add_dynamic_sequences(
             cinematic_of=number,  # remapped below
             splice_segments=[(s.start, s.end) for s in segments],
             dynamic_cam=[
-                {"start_seconds": s.start, "end_seconds": s.end, "kind": s.kind, "style": s.style} for s in segments
+                {
+                    "start_seconds": s.start,
+                    "end_seconds": s.end,
+                    "kind": s.kind,
+                    "style": s.style,
+                    **({"transition": "swoop" if s.swoop else "cut"} if s.kind == "intro" else {}),
+                }
+                for s in segments
             ],
             cinematic_candidates=None,
         )

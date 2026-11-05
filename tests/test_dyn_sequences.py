@@ -97,3 +97,20 @@ def test_splice_chain_applies_real_take_first_then_generated(monkeypatch, tmp_pa
     assert [c[1] for c in calls] == ["real.mp4", "gen.mp4"]
     assert calls[1][0] == "spliced_01_0.mp4"  # the generated take overlays the already spliced clip
     assert [o.sequence.number for o, _ in result] == [1, 4]
+
+
+def test_intro_transition_is_recorded_per_intro_segment(tmp_path):
+    result, _ = add_dynamic_sequences(
+        [pov(1)], {}, DEMO, straight_sampler, tmp_path, ["face"], ["tps"], intro_transition="cut"
+    )
+    cams = result[1].dynamic_cam
+    assert [c.get("transition") for c in cams if c["kind"] == "intro"] == ["cut"]
+    assert all("transition" not in c for c in cams if c["kind"] == "downtime")
+    default, _ = add_dynamic_sequences([pov(1)], {}, DEMO, straight_sampler, tmp_path, ["face"], None)
+    assert default[1].dynamic_cam[0]["transition"] == "swoop"
+
+
+def test_intro_transition_option_reaches_run_and_batch():
+    for command in (["run", "--help"], ["batch", "--help"]):
+        out = CliRunner().invoke(main, command).output
+        assert "--intro-transition [swoop|cut]" in out

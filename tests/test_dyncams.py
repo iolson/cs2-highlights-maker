@@ -84,6 +84,15 @@ def test_intro_swoop_keeps_clear_of_the_players_head_until_the_last_push(style):
 
 
 @pytest.mark.parametrize("style", STYLES)
+def test_cut_intro_holds_the_shot_to_the_end_without_swooping(style):
+    cut = Segment(0.0, 3.0, "intro", style, swoop=False)
+    poses = [segment_pose(cut, EYE, 3.0 * i / 30) for i in range(31)]
+    assert all(math.dist(p.pos, EYE.pos) > 40 for p in poses)  # never pushes into the eye
+    assert close(poses[-1].pos, style_pose(style, EYE, 1.0).pos)  # still on the chosen shot at the cut
+    assert close(poses[0].pos, segment_pose(Segment(0.0, 3.0, "intro", style), EYE, 0.0).pos)  # same opening
+
+
+@pytest.mark.parametrize("style", STYLES)
 def test_downtime_is_one_continuous_pass_that_never_swoops_to_the_eye(style):
     down = Segment(2.0, 8.0, "downtime", style)
     poses = [segment_pose(down, EYE, 2.0 + 6.0 * i / 20) for i in range(21)]
