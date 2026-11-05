@@ -104,6 +104,12 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   recording session per demo (`record`), then each POV clip is copied to `<label>-<player slug>-<n>.mp4` and
   its group (POV + takes, renumbered 1..k) gets `<name>.json` via `write_report`/`finalize_report`.
   Player filter is lenient (absent players ignored, `present_players`). No slow-mo (cotw does it, needs 120 fps).
+- Round context (`analysis/scoring.py`): `round_context` derives the score before each round from
+  `rosters` (team A = CT players of the first rostered round, followed across side switches) and
+  `wins_needed` (13, then 16/19/... for MR3 overtimes) → `match_point`; `DemoData.equipment` (round →
+  steamid → `current_equip_value` at freeze end + 16, read with the rosters in `parser._build_rosters`)
+  gives `eco`/`anti-eco` (`ECO_MAX` 1500 vs `BUY_MIN` 3500). Multipliers in `WEIGHTS`; the tags are
+  stored on `Moment.tags` and shown after the highlight in the top tables.
 - `video/vertical.py` — `--vertical blur|crop` (+ `--vertical-killfeed`): final 1080x1920 copy
   `<output>-vertical.mp4` via one FFmpeg filter pass after the concat (kill-feed crop region constants
   assume the default top-right position).

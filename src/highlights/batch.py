@@ -234,7 +234,9 @@ def run_batch(
             write_report(output_dir / f"{clip.name}.json", job.demo, clip.group, spatial_by_sequence=clip.spatial)
         if json_only:
             continue
-        written += _record_demo(job, sequences, clips, config, output_dir, keep_clips, timing_offset)
+        written += _record_demo(
+            job, sequences, clips, config, output_dir, keep_clips, timing_offset
+        )
     return written
 
 
@@ -269,6 +271,7 @@ def _record_demo(
     for index, o in enumerate(outputs, 1):
         info(f"{job.label}: preparing clip {index}/{len(outputs)}...")
         recorded.append((o, process_clip(tools.ffmpeg_exe, o, clips_dir, False)))
+
     if any(o.sequence.splice_segments for o, _ in recorded):
         recorded = cli._splice_cinematics(
             tools.ffmpeg_exe, recorded, clips_dir, config.recording.crf, (config.recording.width, config.recording.height)
@@ -277,13 +280,15 @@ def _record_demo(
     name_of = {id(c.pov.moments[0]): c.name for c in clips}
     written = []
     for output, clip in recorded:
-        if output.sequence.cinematic_of is not None:
+        sequence = output.sequence
+        if sequence.cinematic_of is not None:
             continue
-        name = name_of[id(output.sequence.moments[0])]
+        name = name_of[id(sequence.moments[0])]
         target = output_dir / f"{name}.mp4"
         shutil.copy2(clip, target)
+        report_path = output_dir / f"{name}.json"
         finalize_report(
-            output_dir / f"{name}.json",
+            report_path,
             {1: probe_duration(tools.ffmpeg_exe, target)},
             offset_seconds=timing_offset,
         )
@@ -295,3 +300,4 @@ def _record_demo(
     if not keep_clips:
         shutil.rmtree(job.work_dir, ignore_errors=True)
     return written
+

@@ -78,6 +78,7 @@ class Moment:
     kills: list[Kill] = field(default_factory=list)
     clutch: Clutch | None = None
     score: float = 0.0
+    tags: list[str] = field(default_factory=list)  # round context that changed the score (match point, eco)
 
     @property
     def kill_count(self) -> int:

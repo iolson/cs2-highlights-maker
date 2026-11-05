@@ -421,7 +421,7 @@ def print_top_table(
             demo.map_name,
             str(moment.round_index + 1),
             moment.name,
-            moment.describe(),
+            " · ".join([moment.describe(), *moment.tags]),
             f"{moment.score:.1f}",
             *([slowmo[index - 1]] if slowmo is not None else []),
             *([clips[index - 1]] if clips is not None else []),

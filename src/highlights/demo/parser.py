@@ -62,6 +62,8 @@ class DemoData:
     player_names: dict[str, str]  # steamid -> name
     slots: dict[str, int]  # steamid -> spec_player slot (may be empty, see get_slots)
     rosters: dict[int, dict[str, str]] = field(default_factory=dict)  # round -> {steamid: side}
+    # round -> {steamid: equipment value at freeze end} (empty when the demo lacks the prop)
+    equipment: dict[int, dict[str, int]] = field(default_factory=dict)
     match_start_tick: int = 0
     last_tick: int = 0
 
@@ -330,7 +332,7 @@ def _parse_demo(path: Path) -> DemoData:
         death_ticks[-1] if death_ticks else 0,
     ) + int(10 * tickrate)
 
-    rosters = _build_rosters(parser, rounds)
+    rosters, equipment = _build_rosters(parser, rounds)
     slots = get_slots(parser, rounds[0].freeze_end_tick + 16)
 
     return DemoData(
@@ -343,25 +345,33 @@ def _parse_demo(path: Path) -> DemoData:
         player_names=player_names,
         slots=slots,
         rosters=rosters,
+        equipment=equipment,
         match_start_tick=match_start_tick,
         last_tick=last_tick,
     )
 
 
-def _build_rosters(parser: DemoParser, rounds: list[Round]) -> dict[int, dict[str, str]]:
-    """Alive players per side shortly after each round's freeze end."""
+def _build_rosters(
+    parser: DemoParser, rounds: list[Round]
+) -> tuple[dict[int, dict[str, str]], dict[int, dict[str, int]]]:
+    """Alive players per side shortly after each round's freeze end, and their equipment value."""
     sample_by_tick: dict[int, int] = {}
     for r in rounds:
         sample_by_tick[r.freeze_end_tick + 16] = r.index
-    try:
-        df = parser.parse_ticks(["is_alive", "team_num"], ticks=list(sample_by_tick.keys()))
-    except BaseException as exc:
-        if not is_parser_error(exc):
-            raise
-        return {}
+    df = None
+    for props in (["is_alive", "team_num", "current_equip_value"], ["is_alive", "team_num"]):
+        try:
+            df = parser.parse_ticks(props, ticks=list(sample_by_tick.keys()))
+            break
+        except BaseException as exc:
+            if not is_parser_error(exc):
+                raise
+    if df is None:
+        return {}, {}
     rosters: dict[int, dict[str, str]] = {r.index: {} for r in rounds}
+    equipment: dict[int, dict[str, int]] = {}
     if df.empty:
-        return rosters
+        return rosters, equipment
     for _, row in df.iterrows():
         tick = int(row["tick"])
         round_index = sample_by_tick.get(tick)
@@ -375,4 +385,7 @@ def _build_rosters(parser: DemoParser, rounds: list[Round]) -> dict[int, dict[st
         steamid = str(row.get("steamid", ""))
         if steamid:
             rosters[round_index][steamid] = side
-    return rosters
+            value = row.get("current_equip_value")
+            if value is not None and not pd.isna(value):
+                equipment.setdefault(round_index, {})[steamid] = int(value)
+    return rosters, equipment

@@ -114,7 +114,9 @@ A player's kills within a round are clustered into "moments" (gap < 20 s),
 and each moment gets a score: multikills (3K/4K/ACE), headshots, knife/zeus
 kills, AWP noscopes, kills through smoke / while flashed / wallbangs, won 1vX
 clutches (detected by tracking alive players), and round importance (pistol
-rounds, overtime, final round). The top-N moments by score become clips;
+rounds, overtime, final round, match point, and economy: a play by a team on an eco against a
+full buy scores higher, one by the full-buy side against an eco lower). Match point and eco
+show after the highlight in the tables, e.g. `3K (aug) · match point`. The top-N moments by score become clips;
 overlapping moments are merged into a single clip with camera switches
 between the featured players.
 
