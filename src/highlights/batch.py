@@ -218,6 +218,7 @@ def run_batch(
     reuse_recordings: bool = False,
     buildup: str | None = None,
     buildup_length: float = 6.0,
+    calibrate: bool = True,
 ) -> list[Path]:
     """Select the best moments across all demos, then record each demo and write one clip + JSON per moment."""
     import click
@@ -300,7 +301,7 @@ def run_batch(
             continue
         written += _record_demo(
             job, sequences, clips, buildups, config, output_dir, keep_clips or reuse_recordings, timing_offset,
-            reuse_recordings,
+            reuse_recordings, calibrate,
         )
     return written
 
@@ -396,6 +397,11 @@ def record_or_reuse(job: DemoJob, sequences: list[Sequence], config: Config, reu
     return outputs
 
 
+def _pov_kill_seconds(pov: Sequence, tickrate: float) -> list[float]:
+    ticks = sorted({k.tick for m in pov.moments for k in m.kills if m.steamid == k.attacker_steamid})
+    return [(t - pov.start_tick) / tickrate for t in ticks if pov.start_tick <= t <= pov.end_tick]
+
+
 def _record_demo(
     job: DemoJob,
     sequences: list[Sequence],
@@ -406,11 +412,12 @@ def _record_demo(
     keep_clips: bool,
     timing_offset: float,
     reuse: bool = False,
+    calibrate: bool = True,
 ) -> list[Path]:
     from highlights import cli
     from highlights.recording.recorder import RecordingSetupError, resolve_tools
     from highlights.report import finalize_report
-    from highlights.video.ffmpeg import probe_duration
+    from highlights.video.ffmpeg import FfmpegError, probe_duration
     from highlights.video.postprocess import process_clip
 
     try:
@@ -429,6 +436,23 @@ def _record_demo(
     for index, o in enumerate(outputs, 1):
         info(f"{job.label}: preparing clip {index}/{len(outputs)}...")
         recorded.append((o, process_clip(tools.ffmpeg_exe, o, clips_dir, False)))
+
+    # Kill-feed timing, measured on the plain POV clips before anything is cut into them.
+    offsets: dict[int, tuple[float | None, int, int]] = {}
+    if calibrate:
+        from highlights.video.killfeed_sync import feed_activity, measure_offset, spikes
+
+        for output, clip in recorded:
+            sequence = output.sequence
+            if sequence.cinematic_of is not None or id(sequence) in buildups or not sequence.moments:
+                continue
+            kills = _pov_kill_seconds(sequence, job.demo.tickrate)
+            try:
+                offset, matched = measure_offset(kills, spikes(feed_activity(tools.ffmpeg_exe, clip)))
+            except FfmpegError as exc:
+                warn(f"{job.label}: kill-feed timing check failed: {exc}")
+                continue
+            offsets[id(sequence)] = (offset, matched, len(kills))
 
     if any(o.sequence.splice_segments for o, _ in recorded):
         recorded = cli._splice_cinematics(
@@ -450,14 +474,17 @@ def _record_demo(
         name = name_of[id(sequence.moments[0])]
         target = output_dir / f"{name}.mp4"
         shutil.copy2(clip, target)
+        measured, matched, total = offsets.get(id(sequence), (None, 0, 0))
         report_path = output_dir / f"{name}.json"
         finalize_report(
             report_path,
             {1: probe_duration(tools.ffmpeg_exe, target)},
-            offset_seconds=timing_offset,
+            offset_seconds=timing_offset + (measured or 0.0),
         )
+        if calibrate:
+            _note_kill_sync(report_path, measured, matched, total)
         written.append(target)
-        info(f"Wrote {target}")
+        info(f"Wrote {target}" + (f" (kill times shifted {measured:+.2f}s from the kill feed)" if measured else ""))
     missing = [c.name for c in clips if output_dir.joinpath(f"{c.name}.mp4") not in written]
     if missing:
         warn(f"{job.label}: no recording for {', '.join(missing)}")
@@ -465,3 +492,16 @@ def _record_demo(
         shutil.rmtree(job.work_dir, ignore_errors=True)
     return written
 
+
+def _note_kill_sync(report_path: Path, measured: float | None, matched: int, total: int) -> None:
+    """Record the kill-feed measurement in the report and shift the slow-mo hint with it."""
+    data = json.loads(report_path.read_text(encoding="utf-8"))
+    timing = data["editing"]["video_timing"]
+    timing["kill_sync"] = {"measured_offset_seconds": measured, "kills_matched": matched, "kills": total}
+    if measured is not None:
+        timing["status"] = "calibrated_from_kill_feed"
+        hint = data.get("slowmo_suggestion")
+        if hint:
+            for key in ("clip_time_seconds", "start_seconds", "end_seconds"):
+                hint[key] = round(max(0.0, hint[key] + measured), 3)
+    report_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")

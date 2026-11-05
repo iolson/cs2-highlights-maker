@@ -119,6 +119,10 @@ the `run` subcommand. Entry point `highlights.cli:main`.
 - `batch --resume` (skip clips whose mp4 exists) and `--reuse-recordings` (`record_or_reuse` +
   `<work>/recorded.json` of `_sequence_key`: ticks, cameras, cam path file sha1, retime, fps/size, extra
   commands, names; implies keeping the work dir).
+- Kill-feed calibration in `batch` (`video/killfeed_sync.py`: change spikes in the kill-feed corner of the
+  plain POV clip, before splicing, matched to nominal kill times; `measure_offset` needs `MIN_SHARE`
+  agreement, one kill needs a single candidate) → per-clip `offset_seconds` +
+  `editing.video_timing.kill_sync`, and the slow-mo hint shifted with it. UNVALIDATED on real footage.
 - `video/vertical.py` — `--vertical blur|crop` (+ `--vertical-killfeed`): final 1080x1920 copy
   `<output>-vertical.mp4` via one FFmpeg filter pass after the concat (kill-feed crop region constants
   assume the default top-right position).

@@ -785,6 +785,7 @@ def top(
     "(<name>-buildup.mp4): empty = nobody in view, players = players in view",
 )
 @click.option("--buildup-length", type=float, default=6.0, show_default=True, help="Longest build-up shot, seconds")
+@click.option("--no-kill-sync", is_flag=True, help="Keep nominal kill times (skip measuring them from the kill feed)")
 @click.option("--timing-offset", type=float, default=0.0, help="Seconds added to kill times in the reports")
 def batch(
     demos: tuple[str, ...],
@@ -818,6 +819,7 @@ def batch(
     reuse_recordings: bool,
     buildup: str | None,
     buildup_length: float,
+    no_kill_sync: bool,
 ) -> None:
     """One clip + JSON per highlight across DEMOs, for a separate compilation step.
 
@@ -908,6 +910,7 @@ def batch(
         reuse_recordings=reuse_recordings,
         buildup=buildup,
         buildup_length=buildup_length,
+        calibrate=not no_kill_sync,
     )
     if json_only:
         console.print(f"[green]Planned:[/green] reports written to {output_dir}")

@@ -61,6 +61,10 @@ highlights batch season59-match07=a.dem season59-match08=b.dem \
   `--slow-mode auto`, best third of the clips): `kill_tick`, `clip_time_seconds`, the window
   (`start_seconds`/`end_seconds`), `speed`, `reason`, `"applied": false` (null when none). The
   table's "Slow-mo" column shows them.
+- Kill times are measured from the recording: each new kill-feed row is a sudden change in the
+  kill-feed corner, and when most of a clip's kills agree on one shift it becomes that clip's
+  offset (`editing.video_timing.kill_sync`, status `calibrated_from_kill_feed`). Ambiguous clips keep
+  the nominal times. `--no-kill-sync` turns it off. Not yet validated against real recordings.
 - `--buildup empty|players` adds `<name>-buildup.mp4` + `.json` (`kind: buildup`, `for_clip`) per
   clip: a cam-path shot from the same round (freeze time included) that ends right before the
   play starts, with nobody / players in view. `--buildup-length` caps it (default 6 s).
