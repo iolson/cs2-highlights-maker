@@ -16,7 +16,7 @@ from highlights import __version__
 from highlights.analysis.clutch import attach_clutches, detect_clutches
 from highlights.analysis.moments import cluster_moments
 from highlights.analysis.scoring import score_moments
-from highlights.analysis.selection import eligible_moments, pick_rows, select_sequences
+from highlights.analysis.selection import clip_seconds, eligible_moments, pick_rows, select_sequences
 from highlights.config import Config, load_config
 from highlights.demo.parser import DemoData, DemoParseError, ensure_dem_file, parse_demo
 from highlights.demo.players import PlayerNotFound, resolve_players
@@ -557,6 +557,14 @@ def _splice_cinematics(
 @click.option("--top", type=int, default=None, help="Max number of highlights")
 @click.option("--max-duration", type=float, default=None, help="Max total video length, seconds")
 @click.option(
+    "--pick",
+    "picks",
+    multiple=True,
+    metavar="1,2,4",
+    help="Keep only these rows of the table this command prints without --pick (numbers or ranges like 3-6)",
+)
+@click.option("--exclude", "excludes", multiple=True, metavar="3,7", help="Drop these rows of that table")
+@click.option(
     "--round",
     "rounds",
     multiple=True,
@@ -580,12 +588,15 @@ def top(
     min_kills: int | None,
     slow_mode: str,
     rounds: tuple[str, ...],
+    picks: tuple[str, ...],
+    excludes: tuple[str, ...],
 ) -> None:
     """Rank highlights across several DEMOs and print one table (no recording)."""
-    from highlights.analysis.selection import parse_rounds, round_allowed
+    from highlights.analysis.selection import apply_picks, parse_numbers, parse_rounds, round_allowed
 
     try:
         round_rules = parse_rounds(rounds)
+        pick_numbers, exclude_numbers = parse_numbers(picks), parse_numbers(excludes)
     except ValueError as exc:
         raise click.UsageError(str(exc))
     config = load_config()
@@ -634,6 +645,14 @@ def top(
         raise click.ClickException("None of the demos could be read")
 
     rows, total_seconds = pick_rows(rows, config.selection, config.recording)
+    numbers = None
+    if rows and (pick_numbers or exclude_numbers):
+        try:
+            kept = apply_picks(rows, pick_numbers, exclude_numbers)
+        except ValueError as exc:
+            raise click.UsageError(str(exc))
+        numbers, rows = [n for n, _ in kept], [row for _, row in kept]
+        total_seconds = sum(clip_seconds(m, d, config.recording) for d, m in rows)
 
     if not rows:
         if config.selection.max_duration > 0:
@@ -654,7 +673,7 @@ def top(
             f"{moment.kill_count}: {pick.reason}"
             for (_, moment), pick in zip(rows, picks)
         ]
-    print_top_table(rows, slowmo_cells)
+    print_top_table(rows, slowmo_cells, numbers=numbers)
     if slowmo_cells is not None:
         info(f"Slow-motion for {sum(1 for c in slowmo_cells if c)} of {len(rows)} clips")
     if config.selection.max_duration > 0:
@@ -684,6 +703,14 @@ def top(
 )
 @click.option("--top", type=int, default=None, help="How many clips in total, best first across all demos")
 @click.option("--max-duration", type=float, default=None, help="Max summed clip length, seconds")
+@click.option(
+    "--pick",
+    "picks",
+    multiple=True,
+    metavar="1,2,4",
+    help="Keep only these rows of the table this command prints without --pick (numbers or ranges like 3-6)",
+)
+@click.option("--exclude", "excludes", multiple=True, metavar="3,7", help="Drop these rows of that table")
 @click.option(
     "--round",
     "rounds",
@@ -753,6 +780,8 @@ def batch(
     max_duration: float | None,
     min_kills: int | None,
     rounds: tuple[str, ...],
+    picks: tuple[str, ...],
+    excludes: tuple[str, ...],
     output_dir: Path,
     fps: int | None,
     width: int | None,
@@ -777,11 +806,12 @@ def batch(
     demos (optionally only the given players) are picked, then every demo is recorded once
     and each moment is written as <label>-<player>-<n>.mp4 with its own .json report.
     """
-    from highlights.analysis.selection import parse_rounds
+    from highlights.analysis.selection import parse_numbers, parse_rounds
     from highlights.batch import DemoJob, parse_demo_arg, run_batch, team_steamids
 
     try:
         round_rules = parse_rounds(rounds)
+        pick_numbers, exclude_numbers = parse_numbers(picks), parse_numbers(excludes)
     except ValueError as exc:
         raise click.UsageError(str(exc))
 
@@ -853,6 +883,8 @@ def batch(
         downtime_cam=downtime_cam,
         tilt_mode=tilt_mode,
         round_rules=round_rules,
+        pick=pick_numbers,
+        exclude=exclude_numbers,
     )
     if json_only:
         console.print(f"[green]Planned:[/green] reports written to {output_dir}")

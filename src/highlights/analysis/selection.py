@@ -56,6 +56,36 @@ def round_allowed(rules: list[RoundRule], label: str, round_index: int) -> bool:
     )
 
 
+def parse_numbers(values: Collection[str]) -> list[int]:
+    """`--pick`/`--exclude` values: "1,2,4", "3-6" and repeats mix (1-based). Raises ValueError."""
+    numbers: list[int] = []
+    for value in values:
+        for part in (p.strip() for p in value.split(",")):
+            if not part:
+                continue
+            first, sep, last = part.partition("-")
+            if not first.strip().isdigit() or (sep and not last.strip().isdigit()):
+                raise ValueError(f"Bad number {part!r} — use row numbers like 1,2,4 or 3-6")
+            low, high = int(first), int(last) if sep else int(first)
+            if low < 1 or high < low:
+                raise ValueError(f"Bad range {part!r}")
+            numbers.extend(n for n in range(low, high + 1) if n not in numbers)
+    return numbers
+
+
+def apply_picks(rows: list, pick: list[int], exclude: list[int]) -> list[tuple[int, object]]:
+    """(table number, row) for the rows kept by --pick/--exclude; numbers are positions in `rows`
+    (1-based, the "#" of the table the same command prints without them). Raises ValueError for a
+    number past the end."""
+    for number in [*pick, *exclude]:
+        if number > len(rows):
+            raise ValueError(f"Row {number} does not exist — the table has {len(rows)} rows")
+    numbered = list(enumerate(rows, 1))
+    if pick:
+        numbered = [numbered[n - 1] for n in pick]
+    return [(n, row) for n, row in numbered if n not in exclude]
+
+
 def _clip_bounds(moment: Moment, demo: DemoData, recording: RecordingConfig) -> tuple[int, int]:
     tickrate = demo.tickrate
     round_ = demo.round_at(moment.round_index)

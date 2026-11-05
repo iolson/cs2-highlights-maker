@@ -13,7 +13,14 @@ import shutil
 from dataclasses import dataclass, replace
 from pathlib import Path
 
-from highlights.analysis.selection import build_sequences, eligible_moments, pick_rows, round_allowed
+from highlights.analysis.selection import (
+    apply_picks,
+    build_sequences,
+    clip_seconds,
+    eligible_moments,
+    pick_rows,
+    round_allowed,
+)
 from highlights.config import Config
 from highlights.demo.parser import DemoData
 from highlights.demo.players import PlayerNotFound, resolve_player
@@ -184,6 +191,8 @@ def run_batch(
     downtime_cam: list[str] | None = None,
     tilt_mode: str = "off",
     round_rules: list | None = None,
+    pick: list[int] | None = None,
+    exclude: list[int] | None = None,
 ) -> list[Path]:
     """Select the best moments across all demos, then record each demo and write one clip + JSON per moment."""
     import click
@@ -216,8 +225,18 @@ def run_batch(
     picked, total = pick_rows(rows, config.selection, config.recording)
     if not picked:
         raise click.ClickException("No clip fits in --max-duration — raise it")
+    numbers = None
+    if pick or exclude:
+        try:
+            kept = apply_picks(picked, pick or [], exclude or [])
+        except ValueError as exc:
+            raise click.UsageError(str(exc))
+        numbers, picked = [n for n, _ in kept], [row for _, row in kept]
+        if not picked:
+            raise click.ClickException("--pick/--exclude left no clips")
+        total = sum(clip_seconds(m, d, config.recording) for d, m in picked)
     names = clip_names([(label_of[id(demo)], moment) for demo, moment in picked])
-    print_top_table(picked, clips=names, labels=[label_of[id(demo)] for demo, _ in picked])
+    print_top_table(picked, clips=names, labels=[label_of[id(demo)] for demo, _ in picked], numbers=numbers)
     info(f"{len(picked)} clips, about {total:.0f}s in total, into {output_dir}")
 
     output_dir.mkdir(parents=True, exist_ok=True)

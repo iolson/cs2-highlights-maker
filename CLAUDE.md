@@ -15,7 +15,7 @@ Windows-only at the recording stage; analysis runs anywhere.
 .venv\Scripts\highlights update-tools                    # re-download latest HLAE/FFmpeg after a CS2 update
 ```
 
-`highlights top DEMO... [--players ..] [--top N] [--round N|DEMO:N]` pools and ranks moments across demos and
+`highlights top DEMO... [--players ..] [--top N] [--round N|DEMO:N] [--pick 1,2 --exclude 3]` pools and ranks moments across demos and
 prints one table only (no JSON, no recording); players missing from a demo skip that demo.
 
 CLI: click with a custom `DefaultRunGroup` — `highlights match.dem` resolves to
@@ -110,6 +110,8 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   steamid → `current_equip_value` at freeze end + 16, read with the rosters in `parser._build_rosters`)
   gives `eco`/`anti-eco` (`ECO_MAX` 1500 vs `BUY_MIN` 3500). Multipliers in `WEIGHTS`; the tags are
   stored on `Moment.tags` and shown after the highlight in the top tables.
+- `--pick/--exclude` (`selection.parse_numbers`/`apply_picks`, top and batch): row numbers of the
+  table the same command prints without them (after `pick_rows`); `print_top_table(numbers=)` keeps them.
 - `video/vertical.py` — `--vertical blur|crop` (+ `--vertical-killfeed`): final 1080x1920 copy
   `<output>-vertical.mp4` via one FFmpeg filter pass after the concat (kill-feed crop region constants
   assume the default top-right position).

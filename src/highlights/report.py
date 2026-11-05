@@ -397,6 +397,7 @@ def print_top_table(
     slowmo: list[str] | None = None,
     clips: list[str] | None = None,
     labels: list[str] | None = None,
+    numbers: list[int] | None = None,
 ) -> None:
     demo_count = len({str(demo.path) for demo, _ in rows})
     table = Table(title=f"Top highlights across {demo_count} demos")
@@ -416,7 +417,7 @@ def print_top_table(
         if len(name) > 24:
             name = name[:23] + "…"
         table.add_row(
-            str(index),
+            str(numbers[index - 1] if numbers is not None else index),
             name,
             demo.map_name,
             str(moment.round_index + 1),

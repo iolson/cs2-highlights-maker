@@ -310,6 +310,17 @@ highlights batch semi=a.dem final=b.dem --players "A,B" --round semi:1,2,10 --ro
 - It can be repeated and combined with `--players`, which is how you separate two players who
   both had a play in the same round.
 
+## Picking rows from the table (`--pick`, `--exclude`)
+
+`top` and `batch` take `--pick 1,2,4` (or ranges like `3-6`) to keep only those rows of the table
+the same command prints without them, and `--exclude 3,7` to drop rows. Run `top` once, then give
+`batch` the same options plus `--pick`; the table keeps the original numbers.
+
+```powershell
+highlights top a.dem b.dem --players "A,B,C" --top 10
+highlights batch a.dem b.dem --players "A,B,C" --top 10 --pick 1,2,4,5,7 --cinematic -o out
+```
+
 ## B-roll for pre-edit build-up (`highlights broll`)
 
 Records your cam paths on their own, with no highlight, so you have footage to open a clip with.
