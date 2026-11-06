@@ -333,6 +333,18 @@ decision and records it in the JSON as `slowmo` per sequence (`--json-only` prev
   beats are dropped first when it would not fit), and the report's `video_time_seconds` and
   `beat_targets` include the retime.
 
+## Sorting a folder of demos (`highlights scan`)
+
+```powershell
+highlights scan "D:\demos\2026" --players "FuzzyHat" --min-score 8 --recursive
+```
+
+Parses every `.dem` in the folder and sorts it: **keep** when one of the players has a play scoring at least
+`--min-score` (the Score column of `top`; run `top` on a few demos first to see what 8 or 12 looks like),
+**remove** when their best play is lower or they are not in the demo, **unreadable** when it cannot be parsed.
+It prints a table (best play, round, score per demo) and writes `<folder>\demo-scan.txt` (paths only, under
+`# KEEP` / `# REMOVE` headings) plus `demo-scan.json` with the details. Nothing is deleted; `-o` picks another file.
+
 ## Picking plays by round (`--round`)
 
 `run`, `top` and `batch` take `--round` to keep only plays from certain rounds, using the round

@@ -727,6 +727,81 @@ def top(
 
 
 @main.command()
+@click.argument("folder", type=click.Path(exists=True, file_okay=False, path_type=Path))
+@click.option(
+    "--players",
+    "players",
+    multiple=True,
+    help="Only these players' plays count: comma-separated and/or repeated (steamid64 or name)",
+)
+@click.option(
+    "--min-score",
+    type=float,
+    required=True,
+    help="Keep a demo when one of these players has a play scoring at least this (see the Score column of `top`)",
+)
+@click.option("--recursive", is_flag=True, help="Also look in sub-folders")
+@click.option(
+    "-o",
+    "--output",
+    type=click.Path(dir_okay=False, path_type=Path),
+    default=None,
+    help="Result list (default: <folder>/demo-scan.txt; details go to the .json beside it)",
+)
+def scan(folder: Path, players: tuple[str, ...], min_score: float, recursive: bool, output: Path | None) -> None:
+    """Sort every demo in FOLDER into keep / remove for the given players (deletes nothing)."""
+    from highlights.scan import KEEP, REMOVE, DemoScan, classify, find_demos, write_scan
+
+    demos = find_demos(folder, recursive)
+    if not demos:
+        raise click.ClickException(f"No .dem files in {folder}" + ("" if recursive else " (try --recursive)"))
+    config = load_config()
+    queries = [q for value in players for q in value.split(",") if q.strip()]
+
+    results: list[DemoScan] = []
+    for index, demo_path in enumerate(demos, 1):
+        work_dir = _resolve_work_dir(config, demo_path)
+        with console.status(f"[{index}/{len(demos)}] Parsing {demo_path.name}..."):
+            try:
+                parsed = parse_demo(ensure_dem_file(demo_path, work_dir))
+            except DemoParseError as exc:
+                warn(f"{demo_path.name}: {exc}")
+                results.append(DemoScan(demo_path, "unreadable", note=str(exc)))
+                continue
+        steamids: list[str] | None = None
+        if queries:
+            try:
+                steamids = resolve_players(parsed, queries)
+            except PlayerNotFound:
+                results.append(classify(demo_path, parsed.map_name, [], min_score))
+                continue
+        moments = eligible_moments(_scored_moments(parsed, config), config.selection, steamids)
+        results.append(classify(demo_path, parsed.map_name, moments, min_score))
+
+    from rich.table import Table as RichTable
+
+    table = RichTable(title=f"{len(results)} demos, minimum score {min_score:g}")
+    for column in ("Demo", "Map", "Verdict", "Best", "Round", "Play"):
+        table.add_column(column)
+    style = {KEEP: "green", REMOVE: "red"}
+    for r in sorted(results, key=lambda r: (r.status != KEEP, -r.best_score)):
+        table.add_row(
+            r.path.name,
+            r.map_name,
+            f"[{style.get(r.status, 'yellow')}]{r.status}[/]",
+            f"{r.best_score:.1f}" if r.best_score else "-",
+            str(r.best_round) if r.best_round else "-",
+            r.best_play or r.note,
+        )
+    console.print(table)
+
+    out = output or folder / "demo-scan.txt"
+    details = write_scan(results, out, min_score, queries)
+    kept = sum(1 for r in results if r.status == KEEP)
+    info(f"Keep {kept}, remove {sum(1 for r in results if r.status == REMOVE)} -> {out} (details: {details.name})")
+
+
+@main.command()
 @click.argument("demos", nargs=-1, required=True, metavar="DEMO...")
 @click.option(
     "--players",
