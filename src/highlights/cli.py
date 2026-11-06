@@ -748,9 +748,19 @@ def top(
     default=None,
     help="Result list (default: <folder>/demo-scan.txt; details go to the .json beside it)",
 )
-def scan(folder: Path, players: tuple[str, ...], min_score: float, recursive: bool, output: Path | None) -> None:
-    """Sort every demo in FOLDER into keep / remove for the given players (deletes nothing)."""
-    from highlights.scan import KEEP, REMOVE, DemoScan, classify, find_demos, write_scan
+@click.option("--delete", "delete", is_flag=True, help="Permanently delete the demos marked remove (asks first)")
+@click.option("--yes", is_flag=True, help="With --delete: do not ask for confirmation")
+def scan(
+    folder: Path,
+    players: tuple[str, ...],
+    min_score: float,
+    recursive: bool,
+    output: Path | None,
+    delete: bool,
+    yes: bool,
+) -> None:
+    """Sort every demo in FOLDER into keep / remove for the given players (deletes only with --delete)."""
+    from highlights.scan import KEEP, REMOVE, DemoScan, classify, delete_demos, find_demos, write_scan
 
     demos = find_demos(folder, recursive)
     if not demos:
@@ -799,6 +809,21 @@ def scan(folder: Path, players: tuple[str, ...], min_score: float, recursive: bo
     details = write_scan(results, out, min_score, queries)
     kept = sum(1 for r in results if r.status == KEEP)
     info(f"Keep {kept}, remove {sum(1 for r in results if r.status == REMOVE)} -> {out} (details: {details.name})")
+
+    doomed = [r for r in results if r.status == REMOVE]
+    if delete and doomed:
+        total_mb = sum(r.path.stat().st_size for r in doomed if r.path.exists()) / 1e6
+        for r in doomed:
+            console.print(f"  [red]delete[/red] {r.path}")
+        if not yes and not click.confirm(f"Permanently delete these {len(doomed)} demos ({total_mb:.0f} MB)?"):
+            info("Nothing deleted")
+            return
+        deleted, failed = delete_demos(results)
+        info(f"Deleted {len(deleted)} demos")
+        for path, reason in failed:
+            warn(f"Could not delete {path}: {reason}")
+    elif delete:
+        info("No demos marked remove: nothing to delete")
 
 
 @main.command()

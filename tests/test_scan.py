@@ -59,3 +59,21 @@ def test_safe_event_turns_a_list_result_into_an_empty_frame():
     for result in ([], None):
         df = _safe_event(Stub(result), "player_blind")
         assert df.empty and list(df.iterrows()) == []
+
+
+def test_delete_demos_removes_only_the_remove_verdicts(tmp_path):
+    from highlights.scan import delete_demos
+
+    files = {name: tmp_path / f"{name}.dem" for name in ("keep", "remove", "bad", "gone")}
+    for name in ("keep", "remove", "bad"):
+        files[name].touch()
+    results = [
+        DemoScan(files["keep"], KEEP),
+        DemoScan(files["remove"], REMOVE),
+        DemoScan(files["bad"], "unreadable"),
+        DemoScan(files["gone"], REMOVE),  # already missing -> reported, not raised
+    ]
+    deleted, failed = delete_demos(results)
+    assert deleted == [files["remove"]]
+    assert [p for p, _ in failed] == [files["gone"]]
+    assert files["keep"].exists() and files["bad"].exists() and not files["remove"].exists()

@@ -19,7 +19,7 @@ Windows-only at the recording stage; analysis runs anywhere.
 prints one table only (no JSON, no recording); players missing from a demo skip that demo.
 
 `highlights scan FOLDER --players .. --min-score N [--recursive -o FILE]` (`scan.py`: `find_demos`, `classify`, `write_scan`):
-parses every demo, `eligible_moments` for the players, keep when a moment scores >= N; writes a path list + `.json`, never deletes.
+parses every demo, `eligible_moments` for the players, keep when a moment scores >= N; writes a path list + `.json`; `--delete` (+ `--yes`) permanently deletes the `remove` verdicts after listing/confirming (`delete_demos`).
 
 `run` also takes `--round` (filter in `cli._analyze`, before `select_sequences`).
 

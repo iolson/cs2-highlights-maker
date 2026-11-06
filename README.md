@@ -343,7 +343,9 @@ Parses every `.dem` in the folder and sorts it: **keep** when one of the players
 `--min-score` (the Score column of `top`; run `top` on a few demos first to see what 8 or 12 looks like),
 **remove** when their best play is lower or they are not in the demo, **unreadable** when it cannot be parsed.
 It prints a table (best play, round, score per demo) and writes `<folder>\demo-scan.txt` (paths only, under
-`# KEEP` / `# REMOVE` headings) plus `demo-scan.json` with the details. Nothing is deleted; `-o` picks another file.
+`# KEEP` / `# REMOVE` headings) plus `demo-scan.json` with the details. Nothing is deleted unless you add `--delete`: it lists the `remove` demos, asks for confirmation
+(`--yes` skips the question) and then permanently deletes only those (never `keep` or `unreadable`). Run without it
+first and read the list. `-o` picks another file.
 
 ## Picking plays by round (`--round`)
 

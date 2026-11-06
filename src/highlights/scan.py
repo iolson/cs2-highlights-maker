@@ -46,12 +46,27 @@ def classify(path: Path, map_name: str, moments: list[Moment], min_score: float)
     )
 
 
+def delete_demos(results: list[DemoScan]) -> tuple[list[Path], list[tuple[Path, str]]]:
+    """Delete the demos with verdict `remove` (never `keep` or `unreadable`); -> (deleted, [(path, error)])."""
+    deleted: list[Path] = []
+    failed: list[tuple[Path, str]] = []
+    for r in results:
+        if r.status != REMOVE:
+            continue
+        try:
+            r.path.unlink()
+            deleted.append(r.path)
+        except OSError as exc:
+            failed.append((r.path, str(exc)))
+    return deleted, failed
+
+
 def write_scan(results: list[DemoScan], out: Path, min_score: float, players: list[str]) -> Path:
     """`out` = plain list (paths only, one per line, under KEEP / REMOVE headings); `out`.json = the details."""
     lines = [
         f"# Demo scan {date.today().isoformat()} - players: {', '.join(players) or 'everyone'}"
         f" - minimum score {min_score:g}",
-        "# Nothing was deleted. Lines starting with # are comments.",
+        "# This list is written before anything is deleted. Lines starting with # are comments.",
     ]
     for status, heading in (
         (KEEP, "KEEP: has a play at or above the minimum score"),
