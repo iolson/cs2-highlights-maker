@@ -66,7 +66,7 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   `cinematic_suggestion`; not combinable with `--cinematic`). Results are keyed by the INPUT
   sequence numbers (the cinematic pass renumbers its output).
 - `recording/dyncams.py` + `dyn_sequences.py` — `--intro-cam` / `--downtime-cam`: generated cam
-  paths (face/profile/gun/tps/heli) computed from dense POV tracks
+  paths (face/profile/gun/tps/shoulder/heli) computed from dense POV tracks
   (`spatial.sample_pov_tracks`, 16 Hz, yaw/pitch) as an extra cinematic take per play
   (`Sequence.dynamic_cam`, `splice_segments`, report `cinematic.generated_cams`). Intro
   segments hold the style `Shot`, spiral round to just behind the head (`SWOOP_END`) and push

@@ -50,17 +50,27 @@ def test_eye_pose_adds_eye_height_and_interpolates_yaw_the_short_way():
 def test_every_style_has_a_shot_that_faces_the_player(style):
     pose = style_pose(style, EYE, 0.0)
     assert math.dist(pose.pos, EYE.pos) > 15  # a head is ~12 units: the camera never sits in it
-    if style != "tps":  # tps looks where the player looks, the others at them
+    if style not in ("tps", "shoulder"):  # these look where the player looks, the others at them
         yaw, _ = look_at(pose.pos, EYE.pos)
         assert abs((pose.yaw - yaw + 180) % 360 - 180) < 15
 
 
 def test_face_is_in_front_and_tps_behind():
     f = (math.cos(math.radians(EYE.yaw)), math.sin(math.radians(EYE.yaw)))
-    for style, sign in (("face", 1), ("tps", -1)):
+    for style, sign in (("face", 1), ("tps", -1), ("shoulder", -1)):
         pose = style_pose(style, EYE, 0.0)
         along = (pose.pos[0] - EYE.pos[0]) * f[0] + (pose.pos[1] - EYE.pos[1]) * f[1]
         assert along * sign > 20
+
+
+def test_shoulder_is_close_behind_and_to_the_players_right():
+    f = (math.cos(math.radians(EYE.yaw)), math.sin(math.radians(EYE.yaw)))
+    r = (f[1], -f[0])  # the player's right
+    pose = style_pose("shoulder", EYE, 0.0)
+    dx, dy = pose.pos[0] - EYE.pos[0], pose.pos[1] - EYE.pos[1]
+    assert -45 < dx * f[0] + dy * f[1] < -25  # tight: much closer than tps
+    assert 5 < dx * r[0] + dy * r[1] < 25
+    assert pose.yaw == pytest.approx(EYE.yaw) and pose.pitch == pytest.approx(EYE.pitch)
 
 
 def test_unknown_style_is_rejected():

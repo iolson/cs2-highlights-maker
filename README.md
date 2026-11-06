@@ -273,7 +273,7 @@ No cam path files needed: the tool computes a cam path from the demo that follow
 player and records it as an extra take, which is cut into the POV clip like a splice-mode
 cinematic (clip length, kill times and audio are unchanged).
 
-Styles: `face`, `profile`, `gun`, `tps` (over the shoulder), `heli` (high, looking down).
+Styles: `face`, `profile`, `gun`, `tps` (over the shoulder, a wider shot), `shoulder` (broadcast over-the-shoulder: tight, about 40 units behind and just right of the head, looking where the player looks), `heli` (high, looking down).
 Pass one, a comma-separated list, or `random` (picked per clip, the same way on every run
 of the same demo). `gun` is a wide shot 1-2 m from the player; `face` is a tight close-up from the player's front-left (about 20-26 units from the head, the face fills most of the frame; it stays off the rifle, which points forward on their right).
 

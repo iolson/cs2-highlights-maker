@@ -1,7 +1,7 @@
 """Generated cam paths that follow the POV player (--intro-cam, --downtime-cam).
 
 Instead of a user-supplied cam path, the path is computed from the demo: a pose
-relative to the player's eye (face, profile, gun, third-person, helicopter) that
+relative to the player's eye (face, profile, gun, third-person, shoulder, helicopter) that
 eases into the exact first-person eye pose at the end of an opener, or out of and
 back into it during down time, so the cut back to the POV take has no jump.
 Everything here is pure geometry on clip-second tracks; the demo is only read by
@@ -22,7 +22,7 @@ from pathlib import Path
 
 from highlights.recording.splice_plan import KILL_PAD, MIN_SEGMENT, _protected_windows
 
-STYLES = ("face", "profile", "gun", "tps", "heli")
+STYLES = ("face", "profile", "gun", "tps", "shoulder", "heli")
 
 EYE_HEIGHT = 64.0  # standing eye height above the player's origin (feet)
 POV_FOV = 90.0  # fov of the first-person view; assumed, not validated in-game
@@ -131,6 +131,10 @@ def shot(style: str, u: float) -> Shot:
         return Shot(_lerp(-30.0, -85.0, u), _lerp(150.0, 115.0, u), _lerp(-36.0, -20.0, u), -20.0, 100.0)
     if style == "tps":  # over the shoulder, looking where the player looks
         return Shot(_lerp(-150.0, -158.0, u), _lerp(78.0, 70.0, u), _lerp(16.0, 22.0, u), 0.0, 85.0, "player")
+    if style == "shoulder":  # broadcast over-the-shoulder: close behind and just right of the head, same view
+        # ~35-40 units back and ~15 to their right (negative = right) fills the frame with the back of the head
+        # and helmet, the weapon and the view ahead; slow push-in while held. Looks where the player looks.
+        return Shot(_lerp(-157.0, -153.0, u), _lerp(40.0, 34.0, u), _lerp(7.0, 5.0, u), 0.0, 85.0, "player")
     if style == "heli":
         height = _lerp(760.0, 620.0, u)
         return Shot(-180.0, height * 0.4, height, 0.0, 90.0)

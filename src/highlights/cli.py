@@ -239,7 +239,7 @@ def _parse_player_names(values: tuple[str, ...]) -> dict[str, str]:
     "--intro-cam",
     default=None,
     callback=lambda ctx, param, value: _parse_cam_styles(value),
-    help="Open every clip with a generated cam that eases into the POV: face, profile, gun, tps, "
+    help="Open every clip with a generated cam that eases into the POV: face, profile, gun, tps, shoulder, "
     "heli, a comma-separated list, or random",
 )
 @click.option(
@@ -881,7 +881,7 @@ def scan(folder: Path, players: tuple[str, ...], min_score: float, recursive: bo
     "--intro-cam",
     default=None,
     callback=lambda ctx, param, value: _parse_cam_styles(value),
-    help="Open every clip with a generated cam: face, profile, gun, tps, heli, a list, or random",
+    help="Open every clip with a generated cam: face, profile, gun, tps, shoulder, heli, a list, or random",
 )
 @click.option(
     "--intro-transition",
