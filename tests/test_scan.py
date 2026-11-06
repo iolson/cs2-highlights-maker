@@ -43,3 +43,19 @@ def test_write_scan_lists_paths_under_headings_and_details_json(tmp_path):
     data = json.loads(details.read_text(encoding="utf-8"))
     assert details.name == "scan.json" and data["min_score"] == 8.0
     assert [d["status"] for d in data["demos"]] == ["keep", "remove", "unreadable"]
+
+
+def test_safe_event_turns_a_list_result_into_an_empty_frame():
+    # demoparser2 returns [] (not a DataFrame) for an event the demo never fires
+    from highlights.demo.parser import _safe_event
+
+    class Stub:
+        def __init__(self, result):
+            self.result = result
+
+        def parse_event(self, name, **kwargs):
+            return self.result
+
+    for result in ([], None):
+        df = _safe_event(Stub(result), "player_blind")
+        assert df.empty and list(df.iterrows()) == []

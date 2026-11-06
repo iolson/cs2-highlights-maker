@@ -157,7 +157,7 @@ def _safe_event(parser: DemoParser, name: str, **kwargs) -> pd.DataFrame:
         if not is_parser_error(exc):
             raise
         return pd.DataFrame()
-    if df is None:
+    if not isinstance(df, pd.DataFrame):  # demoparser2 returns [] (a list) for an event the demo never fires
         return pd.DataFrame()
     return df
 
