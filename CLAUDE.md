@@ -120,7 +120,7 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   recording session per demo (`record`), then each POV clip is copied to `<label>-<player slug>-<n>.mp4` and
   its group (POV + takes, renumbered 1..k) gets `<name>.json` via `write_report`/`finalize_report`.
   Player filter is lenient (absent players ignored, `present_players`). No slow-mo (cotw does it, needs 120 fps).
-- `teaser.py` — `batch --cinematic-only [--speed 1 --clip-length 3 --output-fps]` (fps defaults to 240): `plan_demo(protect_kills=False)`
+- `teaser.py` — `batch --cinematic-only [--speed 1 --clip-length 5 --output-fps]` (fps defaults to 240): `plan_demo(protect_kills=False)`
   makes `splice_segments` the raw cam-path visibility runs (kills included); `plan_takes` keeps only the cinematic take per
   clip, `choose_window` picks the stretch at the kills, the take is ended after the window (`TAIL`), POVs are never recorded;
   `record_teaser` cuts the window and slows it with one ffmpeg pass (`slow_args`: `setpts=PTS/speed,fps=`, no audio) ->

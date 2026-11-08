@@ -237,7 +237,7 @@ def run_batch(
     intro_transition: str = "swoop",
     cinematic_only: bool = False,
     speed: float = 1.0,
-    clip_length: float = 3.0,
+    clip_length: float = 5.0,
     output_fps: int | None = None,
 ) -> list[Path]:
     """Select the best moments across all demos, then record each demo and write one clip + JSON per moment."""

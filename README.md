@@ -355,7 +355,7 @@ highlights batch a.dem b.dem --players "FuzzyHat" --top 12 --cinematic-only -o t
 
 Cam-path footage only, for a teaser/trailer over a slow song: no POV, no audio, no kill feed. Per play it finds the
 stretch where one of your cam paths sees the player (kills included, unlike `--cinematic` which keeps the POV around
-them), keeps up to `--clip-length` seconds of it (default 3, centred on the kills), records at `--fps` (default 240)
+them), keeps up to `--clip-length` seconds of it (default 5, centred on the kills), records at `--fps` (default 240)
 and by default keeps it at full speed (`--speed 1`: a 240 fps clip, so your own slow-motion step has real frames to
 work with). `--speed 0.25` slows it 4x here instead: 240 fps at 0.25x is a 60 fps clip of real frames, no
 interpolation. `--output-fps` overrides the output rate. Plays no cam path can see are skipped with a warning.

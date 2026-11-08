@@ -942,7 +942,7 @@ def scan(
     help="--cinematic-only: playback speed. 1 keeps the raw high-fps footage for your own slow-motion step; "
     "0.25 = 4x slower here",
 )
-@click.option("--clip-length", type=float, default=3.0, show_default=True, help="--cinematic-only: longest stretch per play, real seconds")
+@click.option("--clip-length", type=float, default=5.0, show_default=True, help="--cinematic-only: longest stretch per play, real seconds")
 @click.option("--output-fps", type=int, default=None, help="--cinematic-only: output frame rate (default: --fps x --speed, at least 24)")
 @click.option("--json-only", is_flag=True, help="Select and plan only: print the table, write the JSON files, record nothing")
 @click.option("--keep-clips", is_flag=True, help="Keep each demo's work dir with the raw clips")
