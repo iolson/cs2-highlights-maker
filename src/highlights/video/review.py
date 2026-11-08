@@ -72,7 +72,7 @@ def suspect_ranges(
 def checked_ranges(report: dict, duration: float) -> list[tuple[float, float]]:
     """Cam-path ranges of a clip from its JSON: the whole clip for B-roll/build-up, else the splice
     segments of its cinematic and generated-cam takes."""
-    if report.get("kind") in ("broll", "buildup"):
+    if report.get("kind") in ("broll", "buildup", "teaser"):
         return [(0.0, duration)]
     ranges = []
     for sequence in report.get("sequences", []):

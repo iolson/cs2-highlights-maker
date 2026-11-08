@@ -110,6 +110,7 @@ def add_cinematic_sequences(
     quiet: bool = False,
     hold: bool = False,
     align: bool = False,
+    protect_kills: bool = True,
 ) -> tuple[list[Sequence], dict[int, dict]]:
     """Follow each POV sequence with cinematic re-recordings of the same ticks.
 
@@ -195,7 +196,9 @@ def add_cinematic_sequences(
             continue
 
         target_at = _target_at(sequence, source or {}, tickrate)
-        kills = _kill_times(sequence, tickrate)
+        # protect_kills=False (cinematic-only teasers): the kills are not kept for the POV, so the
+        # segments are every stretch the cam path sees the player, kills included.
+        kills = _kill_times(sequence, tickrate) if protect_kills else []
         duration = sequence.duration_seconds(tickrate)
         threshold = 1e-9 if forced else MIN_COVERAGE
         # Plan lazily: only the shown candidates and the chosen path are needed (the search

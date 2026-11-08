@@ -121,6 +121,7 @@ def plan_demo(
     tilt_mode: str = "off",
     grenade_cam: str = "off",
     intro_transition: str = "swoop",
+    protect_kills: bool = True,
 ) -> tuple[list[Sequence], list[ClipPlan]]:
     """Every sequence to record for this demo (POV plus cinematic/generated takes) and the clips they make."""
     from highlights import cli
@@ -153,6 +154,7 @@ def plan_demo(
                     labels=labels,
                     hold=hold or align,
                     align=align,
+                    protect_kills=protect_kills,
                 )
         except Exception as exc:  # a map without cam paths must not stop the batch
             warn(f"{job.label}: no cinematic ({exc})")
@@ -233,6 +235,10 @@ def run_batch(
     calibrate: bool = True,
     grenade_cam: str = "off",
     intro_transition: str = "swoop",
+    cinematic_only: bool = False,
+    speed: float = 1.0,
+    clip_length: float = 3.0,
+    output_fps: int | None = None,
 ) -> list[Path]:
     """Select the best moments across all demos, then record each demo and write one clip + JSON per moment."""
     import click
@@ -300,8 +306,21 @@ def run_batch(
         info(f"[bold]{job.label}[/bold]: {len(mine)} clip(s)")
         sequences, clips = plan_demo(
             job, mine, config, cinematic, cinematic_path, hold, align, intro_cam, downtime_cam, tilt_mode, grenade_cam,
-            intro_transition,
+            intro_transition, protect_kills=not cinematic_only,
         )
+        if cinematic_only:
+            from highlights.teaser import plan_takes, record_teaser, write_plans
+
+            takes = plan_takes(clips, job.demo, clip_length, job.label)
+            if not takes:
+                continue
+            if json_only:
+                write_plans(takes, config, output_dir, speed, output_fps)
+            else:
+                written += record_teaser(
+                    job, takes, config, output_dir, keep_clips or reuse_recordings, reuse_recordings, speed, output_fps
+                )
+            continue
         for clip in clips:
             report = output_dir / f"{clip.name}.json"
             write_report(report, job.demo, clip.group, spatial_by_sequence=clip.spatial)

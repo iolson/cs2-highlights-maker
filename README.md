@@ -347,6 +347,24 @@ It prints a table (best play, round, score per demo) and writes `<folder>\demo-s
 (`--yes` skips the question) and then permanently deletes only those (never `keep` or `unreadable`). Run without it
 first and read the list. `-o` picks another file.
 
+## Cinematic-only teaser clips (`batch --cinematic-only`)
+
+```powershell
+highlights batch a.dem b.dem --players "FuzzyHat" --top 12 --cinematic-only -o teaser
+```
+
+Cam-path footage only, for a teaser/trailer over a slow song: no POV, no audio, no kill feed. Per play it finds the
+stretch where one of your cam paths sees the player (kills included, unlike `--cinematic` which keeps the POV around
+them), keeps up to `--clip-length` seconds of it (default 3, centred on the kills), records at `--fps` (default 240)
+and by default keeps it at full speed (`--speed 1`: a 240 fps clip, so your own slow-motion step has real frames to
+work with). `--speed 0.25` slows it 4x here instead: 240 fps at 0.25x is a 60 fps clip of real frames, no
+interpolation. `--output-fps` overrides the output rate. Plays no cam path can see are skipped with a warning.
+Everything that picks plays works as in `batch` (`--players`, `--team`, `--round`, `--top`, `--pick`/`--exclude`,
+`--cinematic-path`, `--campath-hold`/`--campath-align`, `--resume`, `--reuse-recordings`). Output is
+`<label>-<player>-<n>.mp4` plus a small `.json` (`kind: teaser`: window, speed, fps, kill times in the slowed clip).
+Needs cam paths in `campaths/<Map>/`; not combinable with the generated cams, grenade cam, build-ups or tilt-shift.
+Recording at 240 fps is slow, so try a couple of plays first (`--top 2`). Unvalidated in-game.
+
 ## Picking plays by round (`--round`)
 
 `run`, `top` and `batch` take `--round` to keep only plays from certain rounds, using the round

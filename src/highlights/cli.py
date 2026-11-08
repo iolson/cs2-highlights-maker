@@ -928,6 +928,22 @@ def scan(
     help="Follow the POV player's grenades with a camera just behind them, from release to detonation. "
     "auto: only grenades that matter (HE/fire kill or hits on 2+, flash assist); all: every HE, flash and molotov",
 )
+@click.option(
+    "--cinematic-only",
+    is_flag=True,
+    help="Teaser mode: only cam-path footage (no POV, no audio), one stretch per play where a cam path sees the "
+    "player, recorded at --fps (default 240); --speed < 1 also slows it. Implies --cinematic",
+)
+@click.option(
+    "--speed",
+    type=float,
+    default=1.0,
+    show_default=True,
+    help="--cinematic-only: playback speed. 1 keeps the raw high-fps footage for your own slow-motion step; "
+    "0.25 = 4x slower here",
+)
+@click.option("--clip-length", type=float, default=3.0, show_default=True, help="--cinematic-only: longest stretch per play, real seconds")
+@click.option("--output-fps", type=int, default=None, help="--cinematic-only: output frame rate (default: --fps x --speed, at least 24)")
 @click.option("--json-only", is_flag=True, help="Select and plan only: print the table, write the JSON files, record nothing")
 @click.option("--keep-clips", is_flag=True, help="Keep each demo's work dir with the raw clips")
 @click.option("--resume", is_flag=True, help="Skip clips whose <name>.mp4 is already in the output folder")
@@ -975,6 +991,10 @@ def batch(
     intro_transition: str,
     downtime_cam: list[str] | None,
     grenade_cam: str,
+    cinematic_only: bool,
+    speed: float,
+    clip_length: float,
+    output_fps: int | None,
     json_only: bool,
     keep_clips: bool,
     timing_offset: float,
@@ -1002,6 +1022,20 @@ def batch(
 
     if teams and names_file is None:
         raise click.UsageError("--team needs --names-file")
+    if cinematic_only:
+        cinematic = True
+        clashing = [
+            name for name, value in (
+                ("--intro-cam", intro_cam), ("--downtime-cam", downtime_cam), ("--grenade-cam", grenade_cam != "off"),
+                ("--buildup", buildup), ("--tilt-mode", tilt_mode != "off"),
+            ) if value
+        ]  # fmt: skip
+        if clashing:
+            raise click.UsageError(f"--cinematic-only is cam-path footage only; drop {', '.join(clashing)}")
+        if not 0 < speed <= 1 or clip_length <= 0:
+            raise click.UsageError("--speed must be in (0, 1] and --clip-length above 0")
+        if fps is None:
+            fps = 240
     if (campath_hold or campath_align or cinematic_path) and not cinematic:
         raise click.UsageError("--campath-hold/--campath-align/--cinematic-path need --cinematic")
     if tilt_mode != "off" and not cinematic:
@@ -1078,6 +1112,10 @@ def batch(
         review=not no_review,
         calibrate=not no_kill_sync,
         grenade_cam=grenade_cam,
+        cinematic_only=cinematic_only,
+        speed=speed,
+        clip_length=clip_length,
+        output_fps=output_fps,
     )
     if json_only:
         console.print(f"[green]Planned:[/green] reports written to {output_dir}")
