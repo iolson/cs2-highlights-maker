@@ -150,6 +150,11 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   of >= 2) stored as `review` in the JSON. No pre-recording geometry check exists (no map collision data).
 - `ingame_check.py` — `highlights check-ingame DEMO`: records the best play as POV, cam path (hold), face
   intro and spliced clip and writes `CHECKLIST.md` (what to see when) to confirm the unvalidated assumptions.
+- `faceit.py` — FACEIT match context: match id from the demo file name / batch label
+  (`1-<uuid>-<n>-<m>.dem`), Data API `/matches/{id}` (+ organizer name), key `[faceit] api_key` or
+  `FACEIT_API_KEY`, finished matches cached in `~/.cs2-highlights/faceit/`. `run` and `batch` add a
+  `match` block (teams, score, division parsed from `competition_name`, `players` steamid → team/opponent,
+  stand-ins via demo sides) after `write_report`; the cotw overlay tool reads it. Any failure = no block.
 - `video/vertical.py` — `--vertical blur|crop` (+ `--vertical-killfeed`): final 1080x1920 copy
   `<output>-vertical.mp4` via one FFmpeg filter pass after the concat (kill-feed crop region constants
   assume the default top-right position).

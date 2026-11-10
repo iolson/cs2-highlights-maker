@@ -67,10 +67,16 @@ class SelectionConfig:
 
 
 @dataclass
+class FaceitConfig:
+    api_key: str = ""  # Data API server-side key; FACEIT_API_KEY env var wins
+
+
+@dataclass
 class Config:
     paths: PathsConfig = field(default_factory=PathsConfig)
     recording: RecordingConfig = field(default_factory=RecordingConfig)
     selection: SelectionConfig = field(default_factory=SelectionConfig)
+    faceit: FaceitConfig = field(default_factory=FaceitConfig)
 
 
 def _apply_section(section_obj: object, data: dict) -> None:
@@ -85,7 +91,7 @@ def load_config(path: Path | None = None) -> Config:
     file_path = path or config_file_path()
     if file_path.is_file():
         data = tomllib.loads(file_path.read_text(encoding="utf-8"))
-        for section_name in ("paths", "recording", "selection"):
+        for section_name in ("paths", "recording", "selection", "faceit"):
             if isinstance(data.get(section_name), dict):
                 _apply_section(getattr(config, section_name), data[section_name])
     return config

@@ -459,6 +459,9 @@ def run(
         print_suggestions_table(parsed, sequences, suggestions)
     report_path = output.with_suffix(".json")
     write_report(report_path, parsed, sequences, spatial_by_sequence=spatial, suggestions=suggestions)
+    from highlights import faceit
+
+    faceit.add_to_report(report_path, faceit.lookup(parsed, config, demo.name))
     info(f"Report written to {report_path}")
 
     if json_only:

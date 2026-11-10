@@ -191,7 +191,33 @@ killfeed_plain = true   # default: transparent row backgrounds and no red local-
 [selection]
 top = 10
 min_kills = 2
+
+# FACEIT Data API server-side key (developers.faceit.com); FACEIT_API_KEY env var wins.
+[faceit]
+api_key = ""
 ```
+
+## FACEIT match context (team, opponent, ESEA division)
+
+When a demo's file name (or batch label) contains a FACEIT match room id, e.g.
+`1-06f966d6-b4e4-4aab-9442-18de41412123-1-1.dem`, `run` and `batch` look the match up in the
+FACEIT Data API and add a `match` block to every report JSON:
+
+```json
+"match": {
+  "match_id": "1-06f966d6-...", "url": "https://www.faceit.com/en/cs2/room/1-06f966d6-...",
+  "league": "ESEA", "competition": "S59 NA Open1-8 East - Regular Season",
+  "season": 59, "region": "NA", "division": "Open", "group": "1-8 East", "stage": "Regular Season",
+  "best_of": 1, "teams": ["Team A", "Team B"], "score": {"Team A": 9, "Team B": 13}, "winner": "Team B",
+  "players": {"<steamid64>": {"nickname": "...", "team": "Team A", "opponent": "Team B"}}
+}
+```
+
+Players are keyed by SteamID64 (the report's `moments[].steamid`). Stand-ins missing from the
+FACEIT roster get the team their in-game side belongs to. The division is parsed from the
+competition name (ESEA leagues have no championship record in the API). Finished matches are
+cached in `~/.cs2-highlights/faceit/`. Without an API key, for other file names, or when the API
+fails, the block is left out and nothing else changes.
 
 ## Cinematic cam paths
 

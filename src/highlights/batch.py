@@ -243,7 +243,7 @@ def run_batch(
     """Select the best moments across all demos, then record each demo and write one clip + JSON per moment."""
     import click
 
-    from highlights import cli
+    from highlights import cli, faceit
     from highlights.report import print_top_table, write_report
 
     filtered = bool(queries or team_ids)
@@ -321,11 +321,14 @@ def run_batch(
                     job, takes, config, output_dir, keep_clips or reuse_recordings, reuse_recordings, speed, output_fps
                 )
             continue
+        match = faceit.lookup(job.demo, config, job.path.name, job.label)
         for clip in clips:
             report = output_dir / f"{clip.name}.json"
             write_report(report, job.demo, clip.group, spatial_by_sequence=clip.spatial)
             data = json.loads(report.read_text(encoding="utf-8"))
             data["slowmo_suggestion"] = slowmo_hint(slow_of.get(id(clip.pov.moments[0])), clip.pov, job.demo.tickrate)
+            if match is not None:
+                data["match"] = match
             report.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
         buildups: dict[int, str] = {}
         if buildup:
