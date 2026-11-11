@@ -52,7 +52,7 @@ def test_parse_competition_esea_name():
 def test_match_block_teams_opponents_and_standins():
     block = faceit.match_block({**fake_match(), "organizer_name": "ESEA"}, demo_with_standin())
     assert block["teams"] == ["Alpha", "Bravo"]
-    assert block["division"] == "Open" and block["league"] == "ESEA"
+    assert block["division"] == "ESEA Open" and block["league"] == "ESEA" and block["stage"] == "Regular Season"
     assert block["url"] == f"https://www.faceit.com/en/cs2/room/{MATCH_ID}"
     assert block["score"] == {"Alpha": 9, "Bravo": 13} and block["winner"] == "Bravo"
     assert block["players"]["11"] == {"nickname": "a1", "team": "Alpha", "opponent": "Bravo"}
@@ -105,3 +105,9 @@ def test_add_to_report_keeps_the_rest(tmp_path):
     report.write_text(json.dumps({"sequences": []}), encoding="utf-8")
     faceit.add_to_report(report, {"teams": ["A", "B"]})
     assert json.loads(report.read_text(encoding="utf-8")) == {"sequences": [], "match": {"teams": ["A", "B"]}}
+
+
+def test_division_falls_back_to_competition_name():
+    match = {**fake_match(), "competition_name": "BHOP Playoffs A", "organizer_name": "Saltcrew"}
+    block = faceit.match_block(match, demo_with_standin())
+    assert block["division"] == "BHOP Playoffs A" and "stage" not in block

@@ -4,7 +4,8 @@ FACEIT demo files are `<match id>-<n>-<m>.dem`, e.g. `1-06f966d6-...-18de4141212
 comes from the Data API (`GET /data/v4/matches/{id}`, server-side key in `[faceit] api_key` or the
 `FACEIT_API_KEY` environment variable) and is cached in `~/.cs2-highlights/faceit/<id>.json` once it is
 finished. ESEA leagues have no championship record in the API, so the division is read from the
-competition name ("S59 NA Open1-8 East - Regular Season" -> Open).
+competition name ("S59 NA Open1-8 East - Regular Season" -> "ESEA Open"); other competitions use
+their name as the division ("BHOP Playoffs A").
 
 The report's `match` block (read by the cotw overlay tool):
     {"match_id", "url", "league", "competition", "season", "region", "division", "group", "stage",
@@ -111,12 +112,17 @@ def match_block(match: dict, demo: DemoData) -> dict:
     score = (match.get("results") or {}).get("score") or {}
     winner = (match.get("results") or {}).get("winner")
     competition = match.get("competition_name", "")
+    league = match.get("organizer_name", "")
+    parsed = parse_competition(competition)
+    # "ESEA Main" for ESEA league matches, otherwise the competition name ("BHOP Playoffs A")
+    division = f"{league} {parsed['division']}".strip() if parsed else competition
     return {
         "match_id": match.get("match_id", ""),
         "url": match.get("faceit_url", "").replace("{lang}", "en"),
-        "league": match.get("organizer_name", ""),
+        "league": league,
         "competition": competition,
-        **parse_competition(competition),
+        **parsed,
+        "division": division,
         "best_of": match.get("best_of"),
         "teams": teams,
         "score": {team: score.get(f) for team, f in zip(teams, ("faction1", "faction2")) if f in score},
