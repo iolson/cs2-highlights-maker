@@ -155,6 +155,7 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   `FACEIT_API_KEY`, finished matches cached in `~/.cs2-highlights/faceit/`. `run` and `batch` add a
   `match` block (teams, score, division parsed from `competition_name`, `players` steamid → team/opponent,
   stand-ins via demo sides) after `write_report`; the cotw overlay tool reads it. Any failure = no block.
+  `scan` stores `scan.match_summary` (no roster, + scanned player's team/opponent) per demo + Match column.
 - `video/vertical.py` — `--vertical blur|crop` (+ `--vertical-killfeed`): final 1080x1920 copy
   `<output>-vertical.mp4` via one FFmpeg filter pass after the concat (kill-feed crop region constants
   assume the default top-right position).

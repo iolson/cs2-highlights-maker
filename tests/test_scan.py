@@ -77,3 +77,24 @@ def test_delete_demos_removes_only_the_remove_verdicts(tmp_path):
     assert deleted == [files["remove"]]
     assert [p for p, _ in failed] == [files["gone"]]
     assert files["keep"].exists() and files["bad"].exists() and not files["remove"].exists()
+
+
+def test_match_summary_drops_roster_and_picks_the_scanned_players_team():
+    from highlights.scan import match_cell, match_summary
+
+    block = {
+        "teams": ["Alpha", "Bravo"], "division": "Open",
+        "players": {"11": {"nickname": "a1", "team": "Alpha", "opponent": "Bravo"},
+                    "21": {"nickname": "b1", "team": "Bravo", "opponent": "Alpha"}},
+    }
+    mine = match_summary(block, ["99", "21"])
+    assert "players" not in mine and mine["team"] == "Bravo" and mine["opponent"] == "Alpha"
+    assert match_cell(mine) == "Bravo vs Alpha · Open"
+    assert match_cell(match_summary(block, None)) == "Alpha vs Bravo · Open"
+    assert match_summary(None, ["11"]) is None and match_cell(None) == ""
+
+
+def test_write_scan_includes_match(tmp_path):
+    results = [DemoScan(tmp_path / "a.dem", KEEP, "de_dust2", 12.0, 5, "4K", 1, match={"teams": ["A", "B"]})]
+    details = write_scan(results, tmp_path / "scan.txt", 8.0, [])
+    assert json.loads(details.read_text(encoding="utf-8"))["demos"][0]["match"] == {"teams": ["A", "B"]}

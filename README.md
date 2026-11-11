@@ -216,7 +216,9 @@ FACEIT Data API and add a `match` block to every report JSON:
 Players are keyed by SteamID64 (the report's `moments[].steamid`). Stand-ins missing from the
 FACEIT roster get the team their in-game side belongs to. The division is parsed from the
 competition name (ESEA leagues have no championship record in the API). Finished matches are
-cached in `~/.cs2-highlights/faceit/`. Without an API key, for other file names, or when the API
+cached in `~/.cs2-highlights/faceit/`. `highlights scan` (with or without `--recursive`) shows the
+match per demo in a Match column and stores it (without the roster, plus the scanned player's
+`team`/`opponent`) as `match` in its `.json`. Without an API key, for other file names, or when the API
 fails, the block is left out and nothing else changes.
 
 ## Cinematic cam paths

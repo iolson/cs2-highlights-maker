@@ -763,13 +763,19 @@ def scan(
     yes: bool,
 ) -> None:
     """Sort every demo in FOLDER into keep / remove for the given players (deletes only with --delete)."""
-    from highlights.scan import KEEP, REMOVE, DemoScan, classify, delete_demos, find_demos, write_scan
+    from highlights import faceit
+    from highlights.scan import (
+        KEEP, REMOVE, DemoScan, classify, delete_demos, find_demos, match_cell, match_summary, write_scan,
+    )
 
     demos = find_demos(folder, recursive)
     if not demos:
         raise click.ClickException(f"No .dem files in {folder}" + ("" if recursive else " (try --recursive)"))
     config = load_config()
     queries = [q for value in players for q in value.split(",") if q.strip()]
+    use_faceit = bool(faceit.api_key(config))
+    if not use_faceit and any(faceit.match_id_of(p.name) for p in demos):
+        warn("FACEIT demos but no API key ([faceit] api_key or FACEIT_API_KEY): no team/opponent/division")
 
     results: list[DemoScan] = []
     for index, demo_path in enumerate(demos, 1):
@@ -787,14 +793,21 @@ def scan(
                 steamids = resolve_players(parsed, queries)
             except PlayerNotFound:
                 results.append(classify(demo_path, parsed.map_name, [], min_score))
+                if use_faceit:
+                    results[-1].match = match_summary(faceit.lookup(parsed, config, demo_path.name), None)
                 continue
         moments = eligible_moments(_scored_moments(parsed, config), config.selection, steamids)
         results.append(classify(demo_path, parsed.map_name, moments, min_score))
+        if use_faceit:
+            results[-1].match = match_summary(faceit.lookup(parsed, config, demo_path.name), steamids)
 
     from rich.table import Table as RichTable
 
     table = RichTable(title=f"{len(results)} demos, minimum score {min_score:g}")
-    for column in ("Demo", "Map", "Verdict", "Best", "Round", "Play"):
+    columns = ["Demo", "Map", "Verdict", "Best", "Round", "Play"]
+    if any(r.match for r in results):
+        columns.append("Match")
+    for column in columns:
         table.add_column(column)
     style = {KEEP: "green", REMOVE: "red"}
     for r in sorted(results, key=lambda r: (r.status != KEEP, -r.best_score)):
@@ -805,6 +818,7 @@ def scan(
             f"{r.best_score:.1f}" if r.best_score else "-",
             str(r.best_round) if r.best_round else "-",
             r.best_play or r.note,
+            *([match_cell(r.match)] if len(columns) > 6 else []),
         )
     console.print(table)
 

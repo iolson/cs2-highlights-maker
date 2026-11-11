@@ -22,6 +22,27 @@ class DemoScan:
     best_play: str = ""
     plays: int = 0  # moments at or above the minimum score
     note: str = ""  # why the demo is not "keep" when it is not just a low score
+    match: dict | None = None  # FACEIT match context (`match_summary`), None for other demos
+
+
+def match_summary(block: dict | None, steamids: list[str] | None) -> dict | None:
+    """The report's FACEIT `match` block without the roster, plus `team`/`opponent` of the first
+    scanned player found in it (none when scanning for everyone)."""
+    if block is None:
+        return None
+    summary = {k: v for k, v in block.items() if k != "players"}
+    entry = next((block["players"][s] for s in steamids or [] if s in block.get("players", {})), None)
+    if entry:
+        summary.update(team=entry["team"], opponent=entry["opponent"])
+    return summary
+
+
+def match_cell(match: dict | None) -> str:
+    """Table cell: `Team vs Opponent · Open`, or `A vs B · Open` without a scanned player's team."""
+    if not match:
+        return ""
+    teams = [match["team"], match["opponent"]] if match.get("team") else match.get("teams", [])
+    return " · ".join(p for p in (" vs ".join(teams), match.get("division", "")) if p)
 
 
 def find_demos(folder: Path, recursive: bool) -> list[Path]:
@@ -95,6 +116,7 @@ def write_scan(results: list[DemoScan], out: Path, min_score: float, players: li
                         "best_play": r.best_play,
                         "plays_at_or_above_min": r.plays,
                         "note": r.note,
+                        "match": r.match,
                     }
                     for r in results
                 ],
