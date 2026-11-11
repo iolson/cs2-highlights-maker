@@ -207,7 +207,7 @@ FACEIT Data API and add a `match` block to every report JSON:
 "match": {
   "match_id": "1-06f966d6-...", "url": "https://www.faceit.com/en/cs2/room/1-06f966d6-...",
   "league": "ESEA", "competition": "S59 NA Open1-8 East - Regular Season",
-  "season": 59, "region": "NA", "division": "ESEA Open", "group": "1-8 East", "stage": "Regular Season",
+  "season": 59, "region": "NA", "division": "ESEA Open 1-8", "group": "East", "stage": "Regular Season",
   "best_of": 1, "teams": ["Team A", "Team B"], "score": {"Team A": 9, "Team B": 13}, "winner": "Team B",
   "players": {"<steamid64>": {"nickname": "...", "team": "Team A", "opponent": "Team B"}}
 }
@@ -215,7 +215,7 @@ FACEIT Data API and add a `match` block to every report JSON:
 
 Players are keyed by SteamID64 (the report's `moments[].steamid`). Stand-ins missing from the
 FACEIT roster get the team their in-game side belongs to. The division is "<league> <division>"
-parsed from the competition name for ESEA leagues ("ESEA Open"; they have no championship record in
+parsed from the competition name for ESEA leagues ("ESEA Open 1-8", "ESEA Main"; they have no championship record in
 the API), otherwise the competition name itself ("BHOP Playoffs A"). Finished matches are
 cached in `~/.cs2-highlights/faceit/`. `highlights scan` (with or without `--recursive`) shows the
 match per demo in a Match column and stores it (without the roster, plus the scanned player's

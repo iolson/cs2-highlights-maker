@@ -43,8 +43,10 @@ def test_match_id_from_file_name_or_label():
 
 def test_parse_competition_esea_name():
     assert faceit.parse_competition("S59 NA Open1-8 East - Regular Season") == {
-        "season": 59, "region": "NA", "division": "Open", "group": "1-8 East", "stage": "Regular Season",
+        "season": 59, "region": "NA", "division": "Open 1-8", "group": "East", "stage": "Regular Season",
     }
+    assert faceit.parse_competition("S59 NA Open9-10 West - Playoffs")["division"] == "Open 9-10"
+    assert faceit.parse_competition("S59 NA Main A - Regular Season")["division"] == "Main"
     assert faceit.parse_competition("S60 EU Intermediate")["division"] == "Intermediate"
     assert faceit.parse_competition("Some Cup") == {}
 
@@ -52,7 +54,7 @@ def test_parse_competition_esea_name():
 def test_match_block_teams_opponents_and_standins():
     block = faceit.match_block({**fake_match(), "organizer_name": "ESEA"}, demo_with_standin())
     assert block["teams"] == ["Alpha", "Bravo"]
-    assert block["division"] == "ESEA Open" and block["league"] == "ESEA" and block["stage"] == "Regular Season"
+    assert block["division"] == "ESEA Open 1-8" and block["league"] == "ESEA" and block["stage"] == "Regular Season"
     assert block["url"] == f"https://www.faceit.com/en/cs2/room/{MATCH_ID}"
     assert block["score"] == {"Alpha": 9, "Bravo": 13} and block["winner"] == "Bravo"
     assert block["players"]["11"] == {"nickname": "a1", "team": "Alpha", "opponent": "Bravo"}

@@ -153,7 +153,7 @@ the `run` subcommand. Entry point `highlights.cli:main`.
 - `faceit.py` — FACEIT match context: match id from the demo file name / batch label
   (`1-<uuid>-<n>-<m>.dem`), Data API `/matches/{id}` (+ organizer name), key `[faceit] api_key` or
   `FACEIT_API_KEY`, finished matches cached in `~/.cs2-highlights/faceit/`. `run` and `batch` add a
-  `match` block (teams, score, division = "ESEA Main" parsed from `competition_name`, else the competition name, `players` steamid → team/opponent,
+  `match` block (teams, score, division = "ESEA Main" / "ESEA Open 1-8" (bracket kept) parsed from `competition_name`, else the competition name, `players` steamid → team/opponent,
   stand-ins via demo sides) after `write_report`; the cotw overlay tool reads it. Any failure = no block.
   `scan` stores `scan.match_summary` (no roster, + scanned player's team/opponent) per demo + Match column.
 - `video/vertical.py` — `--vertical blur|crop` (+ `--vertical-killfeed`): final 1080x1920 copy

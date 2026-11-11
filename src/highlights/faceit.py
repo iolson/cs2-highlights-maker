@@ -4,7 +4,7 @@ FACEIT demo files are `<match id>-<n>-<m>.dem`, e.g. `1-06f966d6-...-18de4141212
 comes from the Data API (`GET /data/v4/matches/{id}`, server-side key in `[faceit] api_key` or the
 `FACEIT_API_KEY` environment variable) and is cached in `~/.cs2-highlights/faceit/<id>.json` once it is
 finished. ESEA leagues have no championship record in the API, so the division is read from the
-competition name ("S59 NA Open1-8 East - Regular Season" -> "ESEA Open"); other competitions use
+competition name ("S59 NA Open1-8 East - Regular Season" -> "ESEA Open 1-8"); other competitions use
 their name as the division ("BHOP Playoffs A").
 
 The report's `match` block (read by the cotw overlay tool):
@@ -29,8 +29,8 @@ from highlights.util.log import warn
 
 API = "https://open.faceit.com/data/v4"
 MATCH_ID = re.compile(r"1-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.IGNORECASE)
-# "S59 NA Open1-8 East - Regular Season": season, region, division, group, stage
-COMPETITION = re.compile(r"^S(\d+)\s+(\S+)\s+([A-Za-z]+)\s*(.*?)(?:\s+-\s+(.+))?$")
+# "S59 NA Open1-8 East - Regular Season": season, region, division, bracket ("1-8"), group, stage
+COMPETITION = re.compile(r"^S(\d+)\s+(\S+)\s+([A-Za-z]+)\s*(\d+-\d+)?\s*(.*?)(?:\s+-\s+(.+))?$")
 
 
 def match_id_of(*names: str) -> str | None:
@@ -76,7 +76,9 @@ def parse_competition(name: str) -> dict:
     found = COMPETITION.match(name.strip())
     if not found:
         return {}
-    season, region, division, group, stage = found.groups()
+    season, region, division, bracket, group, stage = found.groups()
+    # "Open 1-8" and "Open 9-10" are different divisions, so the bracket belongs to it
+    division = f"{division} {bracket}" if bracket else division
     return {"season": int(season), "region": region, "division": division, "group": group, "stage": stage or ""}
 
 
