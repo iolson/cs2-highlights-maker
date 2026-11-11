@@ -594,8 +594,22 @@ def _splice_cinematics(
     return result
 
 
+def _match_cells(rows: list[tuple[DemoData, Moment]], config: Config) -> list[str] | None:
+    """FACEIT "Team vs Opponent · Division" per table row (each demo looked up once), None without any."""
+    from highlights import faceit
+    from highlights.scan import match_cell, match_summary
+
+    demos = list({id(demo): demo for demo, _ in rows}.values())
+    if not faceit.enabled(config, [d.path for d in demos]):
+        return None
+    blocks = {id(d): faceit.lookup(d, config) for d in demos}
+    cells = [match_cell(match_summary(blocks[id(demo)], [moment.steamid])) for demo, moment in rows]
+    return cells if any(cells) else None
+
+
 @main.command()
-@click.argument("demos", nargs=-1, required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.argument("demos", nargs=-1, required=True, type=click.Path(exists=True, path_type=Path))
+@click.option("--recursive", is_flag=True, help="A folder in DEMOS also includes the demos in its sub-folders")
 @click.option("--player", default=None, help="Only this player's highlights (steamid64 or name)")
 @click.option(
     "--players",
@@ -630,6 +644,7 @@ def _splice_cinematics(
 )
 def top(
     demos: tuple[Path, ...],
+    recursive: bool,
     player: str | None,
     players: tuple[str, ...],
     top: int | None,
@@ -640,8 +655,13 @@ def top(
     picks: tuple[str, ...],
     excludes: tuple[str, ...],
 ) -> None:
-    """Rank highlights across several DEMOs and print one table (no recording)."""
+    """Rank highlights across several DEMOs (files or folders) and print one table (no recording)."""
     from highlights.analysis.selection import apply_picks, parse_numbers, parse_rounds, round_allowed
+    from highlights.scan import find_demos
+
+    demos = tuple(p for arg in demos for p in (find_demos(arg, recursive) if arg.is_dir() else [arg]))
+    if not demos:
+        raise click.ClickException("No .dem files found" + ("" if recursive else " (try --recursive)"))
 
     try:
         round_rules = parse_rounds(rounds)
@@ -722,7 +742,7 @@ def top(
             f"{moment.kill_count}: {pick.reason}"
             for (_, moment), pick in zip(rows, picks)
         ]
-    print_top_table(rows, slowmo_cells, numbers=numbers)
+    print_top_table(rows, slowmo_cells, numbers=numbers, matches=_match_cells(rows, config))
     if slowmo_cells is not None:
         info(f"Slow-motion for {sum(1 for c in slowmo_cells if c)} of {len(rows)} clips")
     if config.selection.max_duration > 0:
@@ -773,9 +793,7 @@ def scan(
         raise click.ClickException(f"No .dem files in {folder}" + ("" if recursive else " (try --recursive)"))
     config = load_config()
     queries = [q for value in players for q in value.split(",") if q.strip()]
-    use_faceit = bool(faceit.api_key(config))
-    if not use_faceit and any(faceit.match_id_of(p.name) for p in demos):
-        warn("FACEIT demos but no API key ([faceit] api_key or FACEIT_API_KEY): no team/opponent/division")
+    use_faceit = faceit.enabled(config, demos)
 
     results: list[DemoScan] = []
     for index, demo_path in enumerate(demos, 1):

@@ -153,3 +153,36 @@ def test_top_max_duration_limits_total_length(runner_and_demos):
     assert full.exit_code == 0, full.output
     assert len(_table_rows(full.output)) == len(everything)
     assert "of 100000s" in full.output
+
+
+def test_top_takes_folders_recursively(tmp_path, runner_and_demos):
+    runner, files, _ = runner_and_demos
+    sub = tmp_path / "season" / "week1"
+    sub.mkdir(parents=True)
+    files[1].rename(sub / files[1].name)
+    flat = runner.invoke(cli.main, ["top", str(tmp_path)])
+    assert "de_mirage" in flat.output and "de_inferno" not in flat.output
+    deep = runner.invoke(cli.main, ["top", str(tmp_path), "--recursive"])
+    assert deep.exit_code == 0, deep.output
+    assert "de_mirage" in deep.output and "de_inferno" in deep.output
+
+
+def test_top_match_column_from_faceit(runner_and_demos, monkeypatch):
+    from highlights import faceit
+
+    runner, files, (alice, bob, carl) = runner_and_demos
+    block = {"teams": ["Alpha", "Bravo"], "division": "ESEA Main",
+             "players": {alice: {"team": "Alpha", "opponent": "Bravo"}}}
+    monkeypatch.setattr(faceit, "enabled", lambda config, paths: True)
+    monkeypatch.setattr(faceit, "lookup", lambda demo, config: block if demo.path.name == "a.dem" else None)
+    result = runner.invoke(cli.main, ["top", *map(str, files)], env={"COLUMNS": "250"})
+    assert result.exit_code == 0, result.output
+    assert "Match" in result.output and "Alpha vs Bravo · ESEA Main" in result.output
+    assert "Alpha vs Bravo · ESEA Main" in next(line for line in result.output.splitlines() if "alice" in line)
+
+
+def test_top_has_no_match_column_without_a_key(runner_and_demos, monkeypatch):
+    monkeypatch.delenv("FACEIT_API_KEY", raising=False)
+    runner, files, _ = runner_and_demos
+    result = runner.invoke(cli.main, ["top", *map(str, files)])
+    assert result.exit_code == 0 and "Match" not in result.output

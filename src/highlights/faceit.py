@@ -46,6 +46,15 @@ def api_key(config: Config) -> str:
     return os.environ.get("FACEIT_API_KEY") or config.faceit.api_key
 
 
+def enabled(config: Config, paths: list[Path]) -> bool:
+    """Whether to look matches up; warns once when FACEIT demos are given without an API key."""
+    if api_key(config):
+        return True
+    if any(match_id_of(p.name) for p in paths):
+        warn("FACEIT demos but no API key ([faceit] api_key or FACEIT_API_KEY): no team/opponent/division")
+    return False
+
+
 def _get(path: str, key: str) -> dict:
     response = requests.get(f"{API}{path}", headers={"Authorization": f"Bearer {key}"}, timeout=20)
     response.raise_for_status()

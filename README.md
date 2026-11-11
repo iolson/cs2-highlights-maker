@@ -217,7 +217,8 @@ Players are keyed by SteamID64 (the report's `moments[].steamid`). Stand-ins mis
 FACEIT roster get the team their in-game side belongs to. The division is "<league> <division>"
 parsed from the competition name for ESEA leagues ("ESEA Open 1-8", "ESEA Main"; they have no championship record in
 the API), otherwise the competition name itself ("BHOP Playoffs A"). Finished matches are
-cached in `~/.cs2-highlights/faceit/`. `highlights scan` (with or without `--recursive`) shows the
+cached in `~/.cs2-highlights/faceit/`. `highlights top` shows a Match column (from the row player's side; `top` also
+takes folders, with `--recursive` for sub-folders). `highlights scan` (with or without `--recursive`) shows the
 match per demo in a Match column and stores it (without the roster, plus the scanned player's
 `team`/`opponent`) as `match` in its `.json`. Without an API key, for other file names, or when the API
 fails, the block is left out and nothing else changes.

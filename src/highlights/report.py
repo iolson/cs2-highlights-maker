@@ -398,6 +398,7 @@ def print_top_table(
     clips: list[str] | None = None,
     labels: list[str] | None = None,
     numbers: list[int] | None = None,
+    matches: list[str] | None = None,
 ) -> None:
     demo_count = len({str(demo.path) for demo, _ in rows})
     table = Table(title=f"Top highlights across {demo_count} demos")
@@ -412,6 +413,8 @@ def print_top_table(
         table.add_column("Slow-mo")
     if clips is not None:
         table.add_column("Clip")
+    if matches is not None:
+        table.add_column("Match")
     for index, (demo, moment) in enumerate(rows, 1):
         name = labels[index - 1] if labels is not None else demo.path.stem
         if len(name) > 24:
@@ -426,5 +429,6 @@ def print_top_table(
             f"{moment.score:.1f}",
             *([slowmo[index - 1]] if slowmo is not None else []),
             *([clips[index - 1]] if clips is not None else []),
+            *([matches[index - 1]] if matches is not None else []),
         )
     console.print(table)

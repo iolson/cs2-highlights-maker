@@ -15,7 +15,7 @@ Windows-only at the recording stage; analysis runs anywhere.
 .venv\Scripts\highlights update-tools                    # re-download latest HLAE/FFmpeg after a CS2 update
 ```
 
-`highlights top DEMO... [--players ..] [--top N] [--round N|DEMO:N] [--pick 1,2 --exclude 3]` pools and ranks moments across demos and
+`highlights top DEMO|FOLDER... [--recursive] [--players ..] [--top N] [--round N|DEMO:N] [--pick 1,2 --exclude 3]` pools and ranks moments across demos and
 prints one table only (no JSON, no recording); players missing from a demo skip that demo.
 
 `highlights scan FOLDER --players .. --min-score N [--recursive -o FILE]` (`scan.py`: `find_demos`, `classify`, `write_scan`):
@@ -155,6 +155,7 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   `FACEIT_API_KEY`, finished matches cached in `~/.cs2-highlights/faceit/`. `run` and `batch` add a
   `match` block (teams, score, division = "ESEA Main" / "ESEA Open 1-8" (bracket kept) parsed from `competition_name`, else the competition name, `players` steamid → team/opponent,
   stand-ins via demo sides) after `write_report`; the cotw overlay tool reads it. Any failure = no block.
+  `top` adds a Match column (`cli._match_cells`, row player's side, only demos in the table). `faceit.enabled` warns once without a key.
   `scan` stores `scan.match_summary` (no roster, + scanned player's team/opponent) per demo + Match column.
 - `video/vertical.py` — `--vertical blur|crop` (+ `--vertical-killfeed`): final 1080x1920 copy
   `<output>-vertical.mp4` via one FFmpeg filter pass after the concat (kill-feed crop region constants
