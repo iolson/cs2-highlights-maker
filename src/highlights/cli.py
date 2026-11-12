@@ -265,6 +265,15 @@ def _parse_player_names(values: tuple[str, ...]) -> dict[str, str]:
     "auto: only grenades that matter (HE/fire kill or hits on 2+, flash assist); all: every HE, flash and molotov",
 )
 @click.option(
+    "--static-cam",
+    default=None,
+    metavar="auto|all|NAME[,NAME]",
+    callback=lambda ctx, param, value: _parse_static_cam(value),
+    help="Also record each play from a fixed camera (campaths/<Map>/static.toml or static/*.campath) as its "
+    "own file: auto = the cam that sees the most deaths, all = every cam that sees a death or the player, "
+    "or these cams by name",
+)
+@click.option(
     "--vertical",
     type=click.Choice(["blur", "crop"]),
     default=None,
@@ -314,6 +323,7 @@ def run(
     intro_transition: str,
     downtime_cam: list[str] | None,
     grenade_cam: str,
+    static_cam: str | list[str] | None,
     vertical: str | None,
     vertical_killfeed: bool,
     timing_offset: float,
@@ -335,8 +345,10 @@ def run(
         raise click.UsageError("--vertical-killfeed needs --vertical blur")
     if suggest_cinematic and cinematic:
         raise click.UsageError("--suggest-cinematic is for previewing; use it without --cinematic")
-    if suggest_cinematic and (intro_cam or downtime_cam or grenade_cam != "off"):
-        raise click.UsageError("--suggest-cinematic cannot be combined with --intro-cam/--downtime-cam/--grenade-cam")
+    if suggest_cinematic and (intro_cam or downtime_cam or grenade_cam != "off" or static_cam):
+        raise click.UsageError(
+            "--suggest-cinematic cannot be combined with --intro-cam/--downtime-cam/--grenade-cam/--static-cam"
+        )
     config = load_config()
     for section, name, value in (
         (config.selection, "top", top),
@@ -455,6 +467,9 @@ def run(
         planned = sum(1 for s in sequences if s.slowmo)
         info(f"Slow-motion: {planned} of {sum(1 for s in sequences if s.cinematic_of is None)} clips")
 
+    if static_cam:
+        sequences, spatial = _add_static_cams(sequences, spatial, parsed, config, static_cam, work_dir)
+
     print_sequences_table(parsed, sequences, spatial)
     if suggestions is not None:
         print_suggestions_table(parsed, sequences, suggestions)
@@ -486,6 +501,15 @@ def run(
     tools = resolve_tools(config, auto_install=False)
     with console.status("Post-processing clips..."):
         recorded = [(o, process_clip(tools.ffmpeg_exe, o, work_dir / "clips", overlays)) for o in outputs]
+        # Static-cam takes are raw footage for editing: their own files, never in the highlights video.
+        statics = [(o, c) for o, c in recorded if o.sequence.static_cam]
+        recorded = [(o, c) for o, c in recorded if not o.sequence.static_cam]
+        for o, c in statics:
+            target = output.with_name(
+                f"{output.stem}-clip{o.sequence.cinematic_of:02d}-static-{o.sequence.static_cam['slug']}{output.suffix}"
+            )
+            shutil.copy2(c, target)
+            info(f"Static cam: {target}")
         if any(o.sequence.splice_segments for o, _ in recorded):
             recorded = _splice_cinematics(
                 tools.ffmpeg_exe,
@@ -531,6 +555,31 @@ def run(
     console.print(
         f"[green]Done:[/green] {output} "
         f"({len(clips)} clips, {total:.0f}s of highlights, took {elapsed}s)"
+    )
+
+
+def _parse_static_cam(value: str | None) -> str | list[str] | None:
+    from highlights.recording.static_cams import parse_mode
+
+    return parse_mode(value)
+
+
+def _add_static_cams(
+    sequences: list[Sequence], spatial: dict[int, dict], demo: DemoData, config: Config, mode, work_dir: Path
+) -> tuple[list[Sequence], dict[int, dict]]:
+    """--static-cam: add static-cam takes, or warn (and change nothing) when the map has none."""
+    from highlights.recording.campaths import resolve_campaths_dir
+    from highlights.recording.static_cams import STATIC_DIR, STATIC_FILE, add_static_sequences, load_static_cams
+
+    cams = load_static_cams(resolve_campaths_dir(config), demo.map_name)
+    if not cams:
+        warn(
+            f"No static cams for {demo.map_name}: add campaths/<Map>/{STATIC_FILE} or {STATIC_DIR}/*.campath "
+            "— no static takes"
+        )
+        return sequences, spatial
+    return add_static_sequences(
+        sequences, cams, spatial, demo.tickrate, mode, work_dir / "staticcams", demo.player_names
     )
 
 
@@ -970,6 +1019,15 @@ def scan(
     "auto: only grenades that matter (HE/fire kill or hits on 2+, flash assist); all: every HE, flash and molotov",
 )
 @click.option(
+    "--static-cam",
+    default=None,
+    metavar="auto|all|NAME[,NAME]",
+    callback=lambda ctx, param, value: _parse_static_cam(value),
+    help="Also record each clip from a fixed camera (campaths/<Map>/static.toml or static/*.campath) as "
+    "<name>-static-<cam>.mp4: auto = the cam that sees the most deaths, all = every cam that sees a death or "
+    "the player, or these cams by name",
+)
+@click.option(
     "--cinematic-only",
     is_flag=True,
     help="Teaser mode: only cam-path footage (no POV, no audio), one stretch per play where a cam path sees the "
@@ -1032,6 +1090,7 @@ def batch(
     intro_transition: str,
     downtime_cam: list[str] | None,
     grenade_cam: str,
+    static_cam: str | list[str] | None,
     cinematic_only: bool,
     speed: float,
     clip_length: float,
@@ -1068,7 +1127,7 @@ def batch(
         clashing = [
             name for name, value in (
                 ("--intro-cam", intro_cam), ("--downtime-cam", downtime_cam), ("--grenade-cam", grenade_cam != "off"),
-                ("--buildup", buildup), ("--tilt-mode", tilt_mode != "off"),
+                ("--buildup", buildup), ("--tilt-mode", tilt_mode != "off"), ("--static-cam", static_cam),
             ) if value
         ]  # fmt: skip
         if clashing:
@@ -1153,6 +1212,7 @@ def batch(
         review=not no_review,
         calibrate=not no_kill_sync,
         grenade_cam=grenade_cam,
+        static_cam=static_cam,
         cinematic_only=cinematic_only,
         speed=speed,
         clip_length=clip_length,

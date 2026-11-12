@@ -36,4 +36,23 @@ The label is shown next to the path name in the `--cinematic` candidate list.
 Routes (the places each path passes through) are shown too, but only when a
 place map exists — without `highlights places build`, routes are not shown.
 
-Used by `highlights <demo> --cinematic`. See the top-level README.
+## Static cams (optional)
+
+Fixed camera positions for `--static-cam` go in `static.toml` (paste the `getpos` line from free cam)
+and/or a `static/` folder of cam path files (first point used, one point is enough):
+
+```
+campaths/
+  Nuke/
+    static.toml
+    static/
+      outside-window.campath
+```
+
+```toml
+[a-site]
+getpos = "setpos -1234.5 567.8 128.0;setang 12.5 90.0 0.0"
+label = "A site from heaven"   # optional; fov = 90 optional too
+```
+
+Used by `highlights <demo> --cinematic` and `--static-cam`. See the top-level README.

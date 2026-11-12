@@ -330,6 +330,42 @@ indoors), so review each run. The offsets are estimates, tuned in
 player's model is drawn while a cam path is active, the cam path fov value, and the
 hand-off to the POV.
 
+## Static cams (`--static-cam auto|all|NAME[,NAME]`)
+
+A fixed camera over the play (a site where a retake develops, the exact spot where the enemy dies),
+recorded over the same ticks as the POV clip and written as its own file for editing by hand. It is
+never spliced into the POV clip or the highlights video.
+
+```
+highlights match.dem --static-cam auto                 # match.dem-highlights-clip01-static-b-site.mp4, ...
+highlights batch a.dem b.dem --top 10 -o out --static-cam all   # out/<name>-static-<cam>.mp4 next to <name>.mp4
+highlights match.dem --static-cam b-site,a-long        # these cams for every play
+```
+
+- `auto`: per play, the cam that sees the most of the play's deaths (victim position at the kill), then
+  the most time with the POV player in view, then the closest. `all`: every cam that sees at least one
+  death or the player for 1.5 s. Names: those cams for every play (warns when one sees nothing).
+- Define cams per map next to the cam paths, in `campaths/<Map>/static.toml`. In a demo, switch to free
+  cam, frame the shot and type `getpos` in the console; paste the line it prints:
+
+  ```toml
+  [b-site]
+  getpos = "setpos 1000 -350 330;setang 18 90 0"
+  fov = 90                              # optional (default 90)
+  label = "B site from the entrance"    # optional
+
+  [a-long]
+  pos = [-1765, 250, 350]               # or position and angles separately
+  angles = [20, 90]                     # pitch (positive looks down), yaw
+  ```
+
+  Or drop HLAE cam path files in `campaths/<Map>/static/`: the first point is used, so a path with a
+  single point (`mirv_campath add` once, then save) is enough.
+- The report lists each take under `cinematic.static_cam` (deaths seen, seconds of the player in view,
+  distance). The kill feed is hidden in static takes, like in cam-path takes.
+- Not validated in-game yet: same view-cone check as splice mode (no wall check), and `getpos` in free
+  cam is assumed to give the camera position.
+
 ## Grenade cam (`--grenade-cam auto|all`)
 
 On `run` and `batch`, a camera rides just behind a grenade the POV player throws, from the moment

@@ -129,10 +129,11 @@ def add_dynamic_sequences(
 
 
 def insert_takes(
-    sequences: list[Sequence], spatial_by_sequence: dict[int, dict], new_for: dict[int, Sequence]
+    sequences: list[Sequence], spatial_by_sequence: dict[int, dict], new_for: dict[int, Sequence | list[Sequence]]
 ) -> tuple[list[Sequence], dict[int, dict]]:
-    """Put each new take (keyed by its POV's number) after that POV's existing takes, renumber
-    everything 1..N and re-key the spatial data (new takes share their POV's)."""
+    """Put each new take (or list of takes, keyed by its POV's number) after that POV's existing
+    takes, renumber everything 1..N and re-key the spatial data (new takes share their POV's)."""
+    new_for = {n: (t if isinstance(t, list) else [t]) for n, t in new_for.items()}
     result: list[Sequence] = []
     spatial: dict[int, dict] = {}
     new_number: dict[int, int] = {}
@@ -141,7 +142,7 @@ def insert_takes(
 
     def flush_dynamic(of: int | None) -> None:
         if of is not None and of in new_for:
-            pending.append((new_for[of], of))
+            pending.extend((take, of) for take in new_for[of])
 
     for sequence in sequences:
         if sequence.cinematic_of is None:
@@ -150,7 +151,7 @@ def insert_takes(
         pending.append((sequence, sequence.number))
     flush_dynamic(last_group)
 
-    dynamic_ids = {id(new_for[n]) for n in new_for}
+    dynamic_ids = {id(take) for takes in new_for.values() for take in takes}
     for sequence, source in pending:
         number = len(result) + 1
         if id(sequence) not in dynamic_ids:

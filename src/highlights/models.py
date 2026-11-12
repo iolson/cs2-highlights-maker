@@ -156,6 +156,9 @@ class Sequence:
     cinematic_candidates: list[dict] | None = None
     # Generated-cam segments (start, end, kind, style) of a --intro-cam/--downtime-cam take.
     dynamic_cam: list[dict] | None = None
+    # --static-cam take: {"name", "label", "slug", "deaths_seen", "player_seconds", "distance"}; recorded as
+    # its own file, never spliced or concatenated.
+    static_cam: dict | None = None
 
     @property
     def name(self) -> str:

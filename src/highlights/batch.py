@@ -122,6 +122,7 @@ def plan_demo(
     grenade_cam: str = "off",
     intro_transition: str = "swoop",
     protect_kills: bool = True,
+    static_cam: str | list[str] | None = None,
 ) -> tuple[list[Sequence], list[ClipPlan]]:
     """Every sequence to record for this demo (POV plus cinematic/generated takes) and the clips they make."""
     from highlights import cli
@@ -180,6 +181,9 @@ def plan_demo(
 
         sequences = plan_tilt(sequences, spatial, demo.tickrate, tilt_mode)
 
+    if static_cam:
+        sequences, spatial = cli._add_static_cams(sequences, spatial, demo, config, static_cam, job.work_dir)
+
     clips = []
     for pov in (s for s in sequences if s.cinematic_of is None):
         group, group_spatial = clip_group(sequences, spatial, pov)
@@ -235,6 +239,7 @@ def run_batch(
     calibrate: bool = True,
     grenade_cam: str = "off",
     intro_transition: str = "swoop",
+    static_cam: str | list[str] | None = None,
     cinematic_only: bool = False,
     speed: float = 1.0,
     clip_length: float = 5.0,
@@ -306,7 +311,7 @@ def run_batch(
         info(f"[bold]{job.label}[/bold]: {len(mine)} clip(s)")
         sequences, clips = plan_demo(
             job, mine, config, cinematic, cinematic_path, hold, align, intro_cam, downtime_cam, tilt_mode, grenade_cam,
-            intro_transition, protect_kills=not cinematic_only,
+            intro_transition, protect_kills=not cinematic_only, static_cam=static_cam,
         )
         if cinematic_only:
             from highlights.teaser import plan_takes, record_teaser, write_plans
@@ -506,6 +511,12 @@ def _record_demo(
     written = []
     for output, clip in recorded:
         sequence = output.sequence
+        if sequence.static_cam:
+            target = output_dir / f"{name_of[id(sequence.moments[0])]}-static-{sequence.static_cam['slug']}.mp4"
+            shutil.copy2(clip, target)
+            written.append(target)
+            info(f"Wrote {target}")
+            continue
         if sequence.cinematic_of is not None:
             continue
         if id(sequence) in buildups:

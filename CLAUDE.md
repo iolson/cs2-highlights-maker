@@ -84,6 +84,13 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   real takes first, generated ones on top; append-mode takes stay in the list. Styles are
   offset estimates (constants/`style_pose`), no wall check, `POV_FOV` and in-game model
   visibility unvalidated. Not combinable with `--suggest-cinematic` (renumbering).
+- `recording/static_cams.py` — `--static-cam auto|all|NAME,..` (run and batch): fixed cams from
+  `campaths/<Map>/static.toml` (`getpos` line or pos/angles) and `static/*.campath` (first point). Per play
+  `assess` = selected-kill victims dying in view + seconds of the POV player in view (`splice_plan._in_view`)
+  + distance; auto = best, all = every cam seeing a death or >= MIN_SEGMENT of the player. Each take is a
+  generated two-point hold path (`dyncams.write_campath`), `Sequence.static_cam`, added after tilt/slow-mo
+  via `insert_takes` (now takes a list per POV). Never spliced or concatenated: `run` copies it to
+  `<output>-clipNN-static-<slug>.mp4`, batch to `<name>-static-<slug>.mp4`. Unvalidated in-game.
 - `recording/grenade_cam.py` — `--grenade-cam auto|all` (run and batch): `spatial.grenade_flights` (the one
   `parse_grenades` query; projectile samples per tick, split into flights at tick gaps because entity ids are
   reused) → `detonate` cuts each flight at its detonation (`DemoData.detonations` from hegrenade_detonate /
