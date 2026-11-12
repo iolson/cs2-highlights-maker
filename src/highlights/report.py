@@ -392,6 +392,12 @@ def print_suggestions_table(demo: DemoData, sequences: list[Sequence], suggestio
     console.print(table)
 
 
+def minutes_seconds(seconds: float) -> str:
+    """`4m 05s` (rounded to whole seconds)."""
+    minutes, rest = divmod(round(seconds), 60)
+    return f"{minutes}m {rest:02d}s"
+
+
 def print_top_table(
     rows: list[tuple[DemoData, Moment]],
     slowmo: list[str] | None = None,
@@ -399,6 +405,7 @@ def print_top_table(
     labels: list[str] | None = None,
     numbers: list[int] | None = None,
     matches: list[str] | None = None,
+    lengths: list[float] | None = None,
 ) -> None:
     demo_count = len({str(demo.path) for demo, _ in rows})
     table = Table(title=f"Top highlights across {demo_count} demos")
@@ -409,6 +416,8 @@ def print_top_table(
     table.add_column("Player")
     table.add_column("Highlight")
     table.add_column("Score")
+    if lengths is not None:
+        table.add_column("Length", justify="right")
     if slowmo is not None:
         table.add_column("Slow-mo")
     if clips is not None:
@@ -427,6 +436,7 @@ def print_top_table(
             moment.name,
             " · ".join([moment.describe(), *moment.tags]),
             f"{moment.score:.1f}",
+            *([f"{lengths[index - 1]:.0f}s"] if lengths is not None else []),
             *([slowmo[index - 1]] if slowmo is not None else []),
             *([clips[index - 1]] if clips is not None else []),
             *([matches[index - 1]] if matches is not None else []),

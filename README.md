@@ -31,6 +31,8 @@ highlights top *.dem --players Alice,Bob --max-duration 247   # best clips that 
 
 This only prints a ranked table (no JSON report, no recording). `--max-duration SECONDS` keeps the best
 clips whose lengths add up to at most that total (a clip that would overrun is skipped, shorter ones can still fit).
+Each row shows the clip's estimated Length (lead-in and lead-out included) and the output ends with
+`Total: 2m 29s`: handy for picking a song, but rough, since slow-mo, trims and transitions in the edit change it.
 
 ### One clip per highlight across demos (`batch`)
 

@@ -26,6 +26,7 @@ from highlights.report import (
     finalize_report,
     print_sequences_table,
     print_suggestions_table,
+    minutes_seconds,
     print_top_table,
     write_report,
 )
@@ -742,11 +743,16 @@ def top(
             f"{moment.kill_count}: {pick.reason}"
             for (_, moment), pick in zip(rows, picks)
         ]
-    print_top_table(rows, slowmo_cells, numbers=numbers, matches=_match_cells(rows, config))
+    lengths = [clip_seconds(m, d, config.recording) for d, m in rows]
+    print_top_table(rows, slowmo_cells, numbers=numbers, matches=_match_cells(rows, config), lengths=lengths)
     if slowmo_cells is not None:
         info(f"Slow-motion for {sum(1 for c in slowmo_cells if c)} of {len(rows)} clips")
-    if config.selection.max_duration > 0:
-        info(f"{len(rows)} clips, about {total_seconds:.0f}s of {config.selection.max_duration:.0f}s")
+    budget = f" of {minutes_seconds(config.selection.max_duration)}" if config.selection.max_duration > 0 else ""
+    info(
+        f"Total: {minutes_seconds(total_seconds)}{budget} ({total_seconds:.0f}s, {len(rows)} clips, "
+        f"lead-in {config.recording.lead_in_seconds:g}s + lead-out {config.recording.lead_out_seconds:g}s each; "
+        "rough: slow-mo, trims and transitions change it)"
+    )
 
 
 @main.command()

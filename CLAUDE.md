@@ -17,6 +17,8 @@ Windows-only at the recording stage; analysis runs anywhere.
 
 `highlights top DEMO|FOLDER... [--recursive] [--players ..] [--top N] [--round N|DEMO:N] [--pick 1,2 --exclude 3]` pools and ranks moments across demos and
 prints one table only (no JSON, no recording); players missing from a demo skip that demo.
+Its Length column is `selection.clip_seconds` per row (lead-in/out included), followed by a `Total: 4m 05s` line
+(`report.minutes_seconds`, exact sum; rough for the finished edit: slow-mo, trims and transitions change it).
 
 `highlights scan FOLDER --players .. --min-score N [--recursive -o FILE]` (`scan.py`: `find_demos`, `classify`, `write_scan`):
 parses every demo, `eligible_moments` for the players, keep when a moment scores >= N; writes a path list + `.json`; `--delete` (+ `--yes`) permanently deletes the `remove` verdicts after listing/confirming (`delete_demos`).

@@ -58,16 +58,16 @@ def runner_and_demos(tmp_path, monkeypatch):
 
 
 def _top(runner, files, *extra):
-    result = runner.invoke(cli.main, ["top", *[str(f) for f in files], *extra])
+    result = runner.invoke(cli.main, ["top", *[str(f) for f in files], *extra], env={"COLUMNS": "200"})
     return result
 
 
 def _table_rows(output):
-    """Table rows as (rank, demo, map, round, player, highlight, score) tuples."""
+    """Table rows as (rank, demo, map, round, player, highlight, score, length) tuples."""
     rows = []
     for line in output.splitlines():
         parts = [p for p in (c.strip() for c in line.split("│")) if p]
-        if len(parts) == 7 and parts[0].isdigit():
+        if len(parts) == 8 and parts[0].isdigit():
             rows.append(tuple(parts))
     return rows
 
@@ -152,7 +152,7 @@ def test_top_max_duration_limits_total_length(runner_and_demos):
     full = _top(runner, files, "--max-duration", "100000")
     assert full.exit_code == 0, full.output
     assert len(_table_rows(full.output)) == len(everything)
-    assert "of 100000s" in full.output
+    assert "of 1666m 40s" in full.output
 
 
 def test_top_takes_folders_recursively(tmp_path, runner_and_demos):
@@ -186,3 +186,26 @@ def test_top_has_no_match_column_without_a_key(runner_and_demos, monkeypatch):
     runner, files, _ = runner_and_demos
     result = runner.invoke(cli.main, ["top", *map(str, files)])
     assert result.exit_code == 0 and "Match" not in result.output
+
+
+def test_top_shows_each_clip_length_and_the_total(runner_and_demos):
+    from highlights.report import minutes_seconds
+
+    runner, files, _ = runner_and_demos
+    result = _top(runner, files)
+    assert result.exit_code == 0, result.output
+    lengths = [float(row[7].rstrip("s")) for row in _table_rows(result.output)]
+    # lead-in 4 s + lead-out 3 s around the kills: every clip is at least 7 s
+    assert lengths and all(length >= 7 for length in lengths)
+    # the total is exact; the column is rounded per clip, so they differ by at most half a second a clip
+    total = float(result.output.split("Total: ")[1].split("(")[1].split("s,")[0])
+    assert abs(total - sum(lengths)) <= len(lengths) / 2
+    assert f"Total: {minutes_seconds(total)}" in result.output
+
+
+def test_minutes_seconds():
+    from highlights.report import minutes_seconds
+
+    assert minutes_seconds(245.4) == "4m 05s"
+    assert minutes_seconds(59.6) == "1m 00s"
+    assert minutes_seconds(0) == "0m 00s"

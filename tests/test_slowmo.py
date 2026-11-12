@@ -151,7 +151,7 @@ def test_top_slow_mode_marks_the_clips_worth_it(tmp_path, monkeypatch):
     dem = tmp_path / "a.dem"
     dem.write_bytes(b"")
     runner = click.testing.CliRunner()
-    result = runner.invoke(cli.main, ["top", str(dem), "--slow-mode", "auto"])
+    result = runner.invoke(cli.main, ["top", str(dem), "--slow-mode", "auto"], env={"COLUMNS": "200"})
     assert result.exit_code == 0, result.output
     assert "Slow-mo" in result.output and "kill 2/2: knife" in result.output
     assert "Slow-motion for 1 of 2 clips" in result.output
