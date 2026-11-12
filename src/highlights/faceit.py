@@ -51,7 +51,7 @@ def enabled(config: Config, paths: list[Path]) -> bool:
     if api_key(config):
         return True
     if any(match_id_of(p.name) for p in paths):
-        warn("FACEIT demos but no API key ([faceit] api_key or FACEIT_API_KEY): no team/opponent/division")
+        warn("FACEIT demos but no API key (\\[faceit] api_key or FACEIT_API_KEY): no team/opponent/division")
     return False
 
 
@@ -149,7 +149,7 @@ def lookup(demo: DemoData, config: Config, *names: str) -> dict | None:
         return None
     key = api_key(config)
     if not key:
-        warn("FACEIT demo but no API key ([faceit] api_key or FACEIT_API_KEY): no team/opponent/division in the report")
+        warn("FACEIT demo but no API key (\\[faceit] api_key or FACEIT_API_KEY): no team/opponent/division in the report")
         return None
     try:
         return match_block(fetch_match(match_id, key), demo)
