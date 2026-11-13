@@ -51,9 +51,8 @@ highlights batch season59-match07=a.dem season59-match08=b.dem \
   (or `--team Saltcrew --names-file names.json`, the lanchamp-cotw file, to take a team's players).
   Players missing from a demo are fine; a demo with none of them is skipped. With no filter
   everyone is eligible. `--max-duration` also works.
-- Each moment becomes `<label>-<player>-r<round>.mp4` plus a `.json` in `-o` (default `highlights-out/`):
-  the round is numbered as in the table (a second play by the same player in that round gets `-2`).
-  The JSON is the same report a single-clip `run` writes (sequence 1, `beat_targets`, `cinematic.*`),
+- Each moment becomes `<label>-<player>-<n>.mp4` plus a `.json` in `-o` (default `highlights-out/`):
+  `n` counts that player's picked clips in that demo, best first. The JSON is the same report a single-clip `run` writes (sequence 1, `beat_targets`, `cinematic.*`),
   plus `batch`: `{"rank": 1, "of": 35, "score": 182.4, "relative_score": 1.0}` (rank 1 = best of the
   whole batch, relative_score = score / best score) so an editing tool can order the clips. There is
   no combined video.
@@ -439,7 +438,7 @@ work with). `--speed 0.25` slows it 4x here instead: 240 fps at 0.25x is a 60 fp
 interpolation. `--output-fps` overrides the output rate. Plays no cam path can see are skipped with a warning.
 Everything that picks plays works as in `batch` (`--players`, `--team`, `--round`, `--top`, `--pick`/`--exclude`,
 `--cinematic-path`, `--campath-hold`/`--campath-align`, `--resume`, `--reuse-recordings`). Output is
-`<label>-<player>-r<round>.mp4` plus a small `.json` (`kind: teaser`: window, speed, fps, kill times in the slowed clip).
+`<label>-<player>-<n>.mp4` plus a small `.json` (`kind: teaser`: window, speed, fps, kill times in the slowed clip).
 Needs cam paths in `campaths/<Map>/`; not combinable with the generated cams, grenade cam, build-ups or tilt-shift.
 Recording at 240 fps is slow, so try a couple of plays first (`--top 2`). Unvalidated in-game.
 

@@ -23,12 +23,12 @@ def test_slugify_matches_existing_file_names():
     assert slugify("!!!", "765") == "765"
 
 
-def test_clip_names_are_demo_player_round():
-    def moment(name, round_index=0):
-        return Moment(steamid="1", name=name, side="CT", round_index=round_index)
+def test_clip_names_count_per_label_and_player_in_rank_order():
+    def moment(name):
+        return Moment(steamid="1", name=name, side="CT", round_index=0)
 
-    rows = [("m7", moment("Ann", 12)), ("m7", moment("Bob")), ("m8", moment("Ann", 12)), ("m7", moment("Ann", 12)), ("m7", moment("Ann", 3))]
-    assert clip_names(rows) == ["m7-ann-r13", "m7-bob-r1", "m8-ann-r13", "m7-ann-r13-2", "m7-ann-r4"]
+    rows = [("m7", moment("Ann")), ("m7", moment("Bob")), ("m8", moment("Ann")), ("m7", moment("Ann"))]
+    assert clip_names(rows) == ["m7-ann-1", "m7-bob-1", "m8-ann-1", "m7-ann-2"]
 
 
 def test_rank_block_is_relative_to_the_best_clip():

@@ -1,7 +1,7 @@
 """`highlights batch`: one finished clip + JSON report per highlight, across several demos.
 
 The best N moments of the (optionally player-filtered) pool of all demos each become their own
-file, `<label>-<player>-r<round>.mp4` + `.json`, shaped like a single-clip `run` so a separate
+file, `<label>-<player>-<n>.mp4` + `.json`, shaped like a single-clip `run` so a separate
 compilation script can join them. Selection is global; recording is one game session per demo.
 """
 
@@ -79,14 +79,13 @@ class DemoJob:
 
 
 def clip_names(rows: list[tuple[str, Moment]]) -> list[str]:
-    """`<label>-<player>-r<round>` for each (label, moment) in rank order (round as numbered in the
-    table); a player's second play in the same round gets `-2`, and so on."""
-    counts: dict[str, int] = {}
+    """`<label>-<player>-<n>` for each (label, moment) in rank order; n counts per label and player."""
+    counts: dict[tuple[str, str], int] = {}
     names = []
     for label, moment in rows:
-        name = f"{label}-{slugify(moment.name, moment.steamid)}-r{moment.round_index + 1}"
-        counts[name] = counts.get(name, 0) + 1
-        names.append(name if counts[name] == 1 else f"{name}-{counts[name]}")
+        key = (label, slugify(moment.name, moment.steamid))
+        counts[key] = counts.get(key, 0) + 1
+        names.append(f"{key[0]}-{key[1]}-{counts[key]}")
     return names
 
 

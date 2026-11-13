@@ -126,8 +126,7 @@ the `run` subcommand. Entry point `highlights.cli:main`.
 - `batch.py` — `highlights batch DEMO|FOLDER... [--recursive] [--players/--team --names-file] [--round N|DEMO:N] --top N -o DIR`: global best-N
   (`selection.pick_rows`, shared with `top`) over all demos, one isolated sequence per moment
   (`build_sequences(..., merge=False)`), cinematic (always splice) + generated cams per demo, ONE
-  recording session per demo (`record`), then each POV clip is copied to `<label>-<player slug>-r<round>.mp4` (`clip_names`; repeat
-  in a round -> `-2`; JSON `batch` = `rank_block`: rank/of/score/relative_score over the whole batch) and
+  recording session per demo (`record`), then each POV clip is copied to `<label>-<player slug>-<n>.mp4` (JSON `batch` = `rank_block`: rank/of/score/relative_score over the whole batch) and
   its group (POV + takes, renumbered 1..k) gets `<name>.json` via `write_report`/`finalize_report`.
   Player filter is lenient (absent players ignored, `present_players`). No slow-mo (cotw does it, needs 120 fps).
 - `teaser.py` — `batch --cinematic-only [--speed 1 --clip-length 5 --output-fps]` (fps defaults to 240): `plan_demo(protect_kills=False)`
