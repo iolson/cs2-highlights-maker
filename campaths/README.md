@@ -38,8 +38,10 @@ place map exists — without `highlights places build`, routes are not shown.
 
 ## Static cams (optional)
 
-Fixed camera positions for `--static-cam` go in `static.toml` (paste the `getpos` line from free cam)
-and/or a `static/` folder of cam path files (first point used, one point is enough):
+Fixed camera positions for `--static-cam` go in `static.toml` (paste the `getpos` or `getpos_exact`
+line from free cam) and/or a `static/` folder of cam path files (first point used, one point is
+enough; `mirv_campath clear`, `mirv_campath add`, `mirv_campath save "<file>"`). The cam path is
+HLAE's own camera pose; which `getpos` variant matches it in demo playback is not yet checked:
 
 ```
 campaths/

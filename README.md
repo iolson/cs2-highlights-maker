@@ -363,8 +363,12 @@ highlights match.dem --static-cam b-site,a-long        # these cams for every pl
   single point (`mirv_campath add` once, then save) is enough.
 - The report lists each take under `cinematic.static_cam` (deaths seen, seconds of the player in view,
   distance). The kill feed is hidden in static takes, like in cam-path takes.
-- Not validated in-game yet: same view-cone check as splice mode (no wall check), and `getpos` in free
-  cam is assumed to give the camera position.
+- `getpos_exact` lines (`setpos_exact ...;setang_exact ...`) are read too. In demo playback the two
+  can print positions over 1,000 units apart with the same angles, so at most one of them is the free
+  cam. Until that is checked, the one-point cam path is the safe capture: it is HLAE's own camera pose,
+  the same thing playback uses (`mirv_campath print` shows it next to `getpos`/`getpos_exact`).
+- Not validated in-game yet: same view-cone check as splice mode (no wall check), and which of
+  `getpos`/`getpos_exact` gives the free-cam position.
 
 ## Grenade cam (`--grenade-cam auto|all`)
 

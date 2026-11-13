@@ -42,6 +42,9 @@ AWAY = StaticCam("away", (0.0, -800.0, 300.0), pitch=10.0, yaw=-90.0)
 def test_parse_getpos_output():
     assert parse_getpos("setpos -1234.5 567.8 128.0;setang 12.5 90.0 0.0") == ((-1234.5, 567.8, 128.0), 12.5, 90.0)
     assert parse_getpos("setpos 1 2 3; setang -5 -170 0") == ((1.0, 2.0, 3.0), -5.0, -170.0)
+    assert parse_getpos("setpos_exact -1369.489502 724.275085 1696.280151;setang_exact 12.033976 43.693214 0.000000") == (
+        (-1369.489502, 724.275085, 1696.280151), 12.033976, 43.693214
+    )
     assert parse_getpos("garbage") is None
 
 

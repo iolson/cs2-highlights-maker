@@ -40,7 +40,10 @@ STATIC_FILE = "static.toml"
 STATIC_DIR = "static"
 DEFAULT_FOV = 90.0
 NUMBER = r"(-?\d+(?:\.\d+)?)"
-GETPOS = re.compile(rf"setpos\s+{NUMBER}\s+{NUMBER}\s+{NUMBER}\s*;?\s*setang\s+{NUMBER}\s+{NUMBER}", re.IGNORECASE)
+# `getpos` prints "setpos x y z;setang p y r", `getpos_exact` "setpos_exact ...;setang_exact ..."
+GETPOS = re.compile(
+    rf"setpos(?:_exact)?\s+{NUMBER}\s+{NUMBER}\s+{NUMBER}\s*;?\s*setang(?:_exact)?\s+{NUMBER}\s+{NUMBER}", re.IGNORECASE
+)
 
 
 @dataclass(frozen=True)
