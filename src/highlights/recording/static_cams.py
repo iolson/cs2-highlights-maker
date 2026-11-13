@@ -9,8 +9,9 @@ Static cams live next to the map's cam paths (the same gitignored folder, never 
       (or pos = [x, y, z] and angles = [pitch, yaw] instead of getpos)
     campaths/<Map>/static/*.campath     HLAE cam paths; the first point is the pose (one point is enough)
 
-Each take holds the one pose for the whole clip (a generated two-point cam path), records over the
-same ticks as its POV clip and is written as a separate file, never spliced or concatenated.
+Each take holds the one pose for the whole clip (a generated path of MIN_POINTS identical poses: HLAE's
+cubic interpolation plays nothing with fewer than 4), records over the same ticks as its POV clip and is
+written as a separate file, never spliced or concatenated.
 Matching (`auto`/`all`): a cam qualifies when a selected kill's victim dies in its view, or the POV
 player is in view for at least MIN_SEGMENT seconds; best = most deaths seen, then most player time,
 then closest. Same view-cone test as splice mode, so the same caveats: no wall check, campath space
@@ -32,7 +33,7 @@ from highlights.models import Sequence
 from highlights.recording.campaths import CAMPATH_SUFFIXES, _forward, map_folders
 from highlights.recording.cinematic import _action_targets, _target_at
 from highlights.recording.dyn_sequences import insert_takes
-from highlights.recording.dyncams import Pose, write_campath
+from highlights.recording.dyncams import MIN_POINTS, Pose, write_campath
 from highlights.recording.splice_plan import MIN_SEGMENT, SAMPLE_STEP, Point, _in_view
 from highlights.util.log import info, warn
 
@@ -220,7 +221,8 @@ def add_static_sequences(
         for look in chosen:
             cam = next(c for c in cams if c.name == look["name"])
             pose = Pose(cam.pos, cam.yaw, cam.pitch, cam.fov)
-            file = write_campath(out_dir / f"static_{cam.slug}_{pov.start_tick}.campath", [(0.0, pose), (duration, pose)])
+            hold = [(duration * i / (MIN_POINTS - 1), pose) for i in range(MIN_POINTS)]
+            file = write_campath(out_dir / f"static_{cam.slug}_{pov.start_tick}.campath", hold)
             seen = f"sees {', '.join(look['deaths_seen'])} die" if look["deaths_seen"] else "sees no death"
             info(escape(f"{pov.label}: static cam {cam.name} — {seen}, player in view {look['player_seconds']:.1f}s"))
             takes.append(

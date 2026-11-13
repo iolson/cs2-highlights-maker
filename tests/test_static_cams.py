@@ -93,7 +93,7 @@ def test_auto_takes_the_cam_that_sees_the_death_and_holds_its_pose(tmp_path):
     assert take.cinematic_of == 1 and take.static_cam["name"] == "both" and take.static_cam["slug"] == "both"
     assert take.splice_segments is None and take.slowmo is None and spatial[2] is SPATIAL
     path = parse_campath(take.campath)
-    assert len(path.keyframes) == 2 and path.keyframes[0].pos == path.keyframes[1].pos == BOTH.pos
+    assert len(path.keyframes) == 4 and all(k.pos == BOTH.pos for k in path.keyframes)  # HLAE cubic needs 4
     assert path.duration == pytest.approx(15.0)
     assert path.keyframes[0].forward == pytest.approx(BOTH.forward, abs=1e-4)
 

@@ -27,6 +27,9 @@ STYLES = ("face", "profile", "gun", "tps", "shoulder", "heli")
 EYE_HEIGHT = 64.0  # standing eye height above the player's origin (feet)
 POV_FOV = 90.0  # fov of the first-person view; assumed, not validated in-game
 KEY_STEP = 1 / 16  # seconds between generated keyframes
+# HLAE's default (cubic) interpolation only evaluates a path with >= 4 points (linear: 2);
+# with fewer, `mirv_campath enabled 1` does nothing (advancedfx shared/AfxMath.h CanEval)
+MIN_POINTS = 4
 OPENER_SECONDS = 3.5  # opener length (shortened to stay clear of the first kill)
 OPENER_HOLD = 0.55  # opener: fraction spent on the style shot before easing into the eye
 DOWNTIME_MAX = 12.0  # longest stretch of one down-time pass
@@ -315,6 +318,8 @@ def build_keyframes(segments: list[Segment], eye_at) -> list[tuple[float, Pose]]
 
 def write_campath(file: Path, keys: list[tuple[float, Pose]]) -> Path:
     """Write HLAE campath XML (quaternion and Euler angles, no roll)."""
+    if len(keys) < MIN_POINTS:
+        raise ValueError(f"a cam path needs at least {MIN_POINTS} points for HLAE to play it, got {len(keys)}")
     rows = []
     previous: tuple[float, float, float, float] | None = None
     for t, pose in keys:

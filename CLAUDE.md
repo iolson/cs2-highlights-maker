@@ -88,7 +88,7 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   `campaths/<Map>/static.toml` (`getpos` line or pos/angles) and `static/*.campath` (first point). Per play
   `assess` = selected-kill victims dying in view + seconds of the POV player in view (`splice_plan._in_view`)
   + distance; auto = best, all = every cam seeing a death or >= MIN_SEGMENT of the player. Each take is a
-  generated two-point hold path (`dyncams.write_campath`), `Sequence.static_cam`, added after tilt/slow-mo
+  generated 4-point hold path (`dyncams.write_campath`, which refuses < `MIN_POINTS` 4: HLAE cubic interpolation needs 4), `Sequence.static_cam`, added after tilt/slow-mo
   via `insert_takes` (now takes a list per POV). Never spliced or concatenated: `run` copies it to
   `<output>-clipNN-static-<slug>.mp4`, batch to `<name>-static-<slug>.mp4`. Unvalidated in-game.
 - `recording/grenade_cam.py` — `--grenade-cam auto|all` (run and batch): `spatial.grenade_flights` (the one

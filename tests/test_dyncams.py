@@ -171,12 +171,18 @@ def test_keyframes_raise_when_the_player_position_is_unknown():
 
 
 def test_quaternions_stay_on_one_side_across_a_yaw_wrap(tmp_path):
-    keys = [(0.0, Pose((0, 0, 0), 179.0, 0.0, 90.0)), (1.0, Pose((0, 0, 0), 181.0, 0.0, 90.0))]
+    keys = [(float(i), Pose((0, 0, 0), yaw, 0.0, 90.0)) for i, yaw in enumerate((178.0, 179.0, 181.0, 182.0))]
     text = write_campath(tmp_path / "w.campath", keys).read_text()
     import re
 
     quats = [tuple(float(v) for v in m) for m in re.findall(r'qw="([-\d.]+)" qx="([-\d.]+)" qy="([-\d.]+)" qz="([-\d.]+)"', text)]
-    assert sum(a * b for a, b in zip(*quats)) > 0
+    assert all(sum(a * b for a, b in zip(q, r)) > 0 for q, r in zip(quats, quats[1:]))
+
+
+def test_write_campath_refuses_paths_hlae_cannot_play(tmp_path):
+    pose = Pose((0, 0, 0), 0.0, 0.0, 90.0)
+    with pytest.raises(ValueError, match="at least 4"):
+        write_campath(tmp_path / "short.campath", [(0.0, pose), (1.0, pose)])
 
 
 def test_only_the_longest_passes_are_kept_and_short_gaps_are_skipped():

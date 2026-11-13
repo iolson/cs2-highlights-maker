@@ -360,7 +360,9 @@ highlights match.dem --static-cam b-site,a-long        # these cams for every pl
   ```
 
   Or drop HLAE cam path files in `campaths/<Map>/static/`: the first point is used, so a path with a
-  single point (`mirv_campath add` once, then save) is enough.
+  single point (`mirv_campath add` once, then save) is enough. HLAE itself cannot play a path that short
+  (its default cubic interpolation needs 4 points), but the file is only read for its pose: the take
+  plays a generated 4-point hold.
 - The report lists each take under `cinematic.static_cam` (deaths seen, seconds of the player in view,
   distance). The kill feed is hidden in static takes, like in cam-path takes.
 - `getpos_exact` lines (`setpos_exact ...;setang_exact ...`) are read too. In demo playback the two
