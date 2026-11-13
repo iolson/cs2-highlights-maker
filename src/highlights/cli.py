@@ -956,6 +956,7 @@ def scan(
     "demo; repeatable. Applied before ranking, so --top counts only these",
 )
 @click.option("--min-kills", type=int, default=None, help="Min kills for a moment to qualify")
+@click.option("--recursive", is_flag=True, help="A folder in DEMO... also includes the demos in its sub-folders")
 @click.option(
     "-o",
     "--output-dir",
@@ -1074,6 +1075,7 @@ def batch(
     rounds: tuple[str, ...],
     picks: tuple[str, ...],
     excludes: tuple[str, ...],
+    recursive: bool,
     output_dir: Path,
     fps: int | None,
     width: int | None,
@@ -1107,7 +1109,8 @@ def batch(
 ) -> None:
     """One clip + JSON per highlight across DEMOs, for a separate compilation step.
 
-    DEMO is PATH or LABEL=PATH (the label names the files). The best --top moments of all
+    DEMO is PATH, LABEL=PATH (the label names the files) or a folder of demos (--recursive for its
+    sub-folders; each demo is labelled by its file name). The best --top moments of all
     demos (optionally only the given players) are picked, then every demo is recorded once
     and each moment is written as <label>-<player>-<n>.mp4 with its own .json report.
     """
@@ -1162,9 +1165,21 @@ def batch(
         if not team_ids:
             raise click.ClickException(f"No player in {names_file} has team {', '.join(teams)}")
 
+    from highlights.scan import find_demos
+
+    expanded = []
+    for value in demos:
+        if "=" not in value and Path(value).is_dir():
+            found = find_demos(Path(value), recursive)
+            if not found:
+                raise click.UsageError(f"No .dem files in {value}" + ("" if recursive else " (try --recursive)"))
+            expanded += [str(p) for p in found]
+        else:
+            expanded.append(value)
+
     jobs = []
     seen: set[str] = set()
-    for value in demos:
+    for value in expanded:
         label, path = parse_demo_arg(value)
         if not path.is_file():
             raise click.UsageError(f"Demo not found: {path}")

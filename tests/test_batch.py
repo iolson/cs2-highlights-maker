@@ -125,6 +125,24 @@ def test_batch_rejects_duplicate_labels_and_missing_names_file(batch_env):
     assert result.exit_code != 0 and "--names-file" in result.output
 
 
+def test_batch_takes_folders_recursively(batch_env):
+    runner, files, out = batch_env
+    sub = files["b.dem"].parent / "week2"
+    sub.mkdir()
+    files["b.dem"].rename(sub / "b.dem")
+    folder = str(files["a.dem"].parent)
+    flat = runner.invoke(cli.main, ["batch", folder, "-o", str(out), "--json-only", "--top", "10"])
+    assert flat.exit_code == 0, flat.output
+    assert {p.stem.split("-")[0] for p in out.glob("*.json")} == {"a"}
+    deep = runner.invoke(cli.main, ["batch", folder, "--recursive", "-o", str(out), "--json-only", "--top", "10"])
+    assert deep.exit_code == 0, deep.output
+    assert {p.stem.split("-")[0] for p in out.glob("*.json")} == {"a", "b"}
+    empty = files["a.dem"].parent / "empty"
+    empty.mkdir()
+    result = runner.invoke(cli.main, ["batch", str(empty), "-o", str(out)])
+    assert result.exit_code != 0 and "No .dem files" in result.output
+
+
 def test_round_rules_parse_and_filter():
     import pytest
 

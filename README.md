@@ -45,7 +45,8 @@ highlights batch season59-match07=a.dem season59-match08=b.dem \
   --cinematic --campath-align --intro-cam random --downtime-cam random --fps 120 -o out/
 ```
 
-- `DEMO` is `PATH` or `LABEL=PATH`; the label names the files (default: the file name).
+- `DEMO` is `PATH`, `LABEL=PATH` or a folder (`--recursive` adds its sub-folders, like `top`); the
+  label names the files (default: the file name).
 - `--top N` is global: the N best moments of all demos together, optionally only for `--players`
   (or `--team Saltcrew --names-file names.json`, the lanchamp-cotw file, to take a team's players).
   Players missing from a demo are fine; a demo with none of them is skipped. With no filter
