@@ -6,7 +6,7 @@ import pytest
 from conftest import make_demo, make_kill, make_round
 
 import highlights.cli as cli
-from highlights.batch import clip_names, parse_demo_arg, present_players, slugify, team_steamids
+from highlights.batch import clip_names, parse_demo_arg, present_players, rank_block, slugify, team_steamids
 from highlights.config import Config
 from highlights.models import Moment
 
@@ -23,12 +23,17 @@ def test_slugify_matches_existing_file_names():
     assert slugify("!!!", "765") == "765"
 
 
-def test_clip_names_count_per_label_and_player_in_rank_order():
-    def moment(name):
-        return Moment(steamid="1", name=name, side="CT", round_index=0)
+def test_clip_names_are_demo_player_round():
+    def moment(name, round_index=0):
+        return Moment(steamid="1", name=name, side="CT", round_index=round_index)
 
-    rows = [("m7", moment("Ann")), ("m7", moment("Bob")), ("m8", moment("Ann")), ("m7", moment("Ann"))]
-    assert clip_names(rows) == ["m7-ann-1", "m7-bob-1", "m8-ann-1", "m7-ann-2"]
+    rows = [("m7", moment("Ann", 12)), ("m7", moment("Bob")), ("m8", moment("Ann", 12)), ("m7", moment("Ann", 12)), ("m7", moment("Ann", 3))]
+    assert clip_names(rows) == ["m7-ann-r13", "m7-bob-r1", "m8-ann-r13", "m7-ann-r13-2", "m7-ann-r4"]
+
+
+def test_rank_block_is_relative_to_the_best_clip():
+    picked = [Moment(steamid="1", name="a", side="CT", round_index=0, score=s) for s in (80.0, 40.0)]
+    assert rank_block(2, picked) == {"rank": 2, "of": 2, "score": 40.0, "relative_score": 0.5}
 
 
 def test_team_steamids_reads_cotw_names_file(tmp_path):
@@ -101,6 +106,11 @@ def test_batch_picks_best_clips_globally_one_file_per_highlight(batch_env):
     assert len(set(names)) == 3
     report = json.loads((out / f"{names[0]}.json").read_text())
     assert [s["number"] for s in report["sequences"]] == [1]
+    ranks = sorted(json.loads((out / f"{n}.json").read_text())["batch"]["rank"] for n in names)
+    assert ranks == [1, 2, 3]
+    best = next(json.loads((out / f"{n}.json").read_text())["batch"] for n in names
+                if json.loads((out / f"{n}.json").read_text())["batch"]["rank"] == 1)
+    assert best["relative_score"] == 1.0 and best["of"] == 3
 
 
 def test_batch_player_filter_skips_demos_without_them(batch_env):

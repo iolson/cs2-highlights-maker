@@ -1,7 +1,7 @@
 """`highlights batch`: one finished clip + JSON report per highlight, across several demos.
 
 The best N moments of the (optionally player-filtered) pool of all demos each become their own
-file, `<label>-<player>-<n>.mp4` + `.json`, shaped like a single-clip `run` so a separate
+file, `<label>-<player>-r<round>.mp4` + `.json`, shaped like a single-clip `run` so a separate
 compilation script can join them. Selection is global; recording is one game session per demo.
 """
 
@@ -79,14 +79,22 @@ class DemoJob:
 
 
 def clip_names(rows: list[tuple[str, Moment]]) -> list[str]:
-    """`<label>-<player>-<n>` for each (label, moment) in rank order; n counts per label and player."""
-    counts: dict[tuple[str, str], int] = {}
+    """`<label>-<player>-r<round>` for each (label, moment) in rank order (round as numbered in the
+    table); a player's second play in the same round gets `-2`, and so on."""
+    counts: dict[str, int] = {}
     names = []
     for label, moment in rows:
-        key = (label, slugify(moment.name, moment.steamid))
-        counts[key] = counts.get(key, 0) + 1
-        names.append(f"{key[0]}-{key[1]}-{counts[key]}")
+        name = f"{label}-{slugify(moment.name, moment.steamid)}-r{moment.round_index + 1}"
+        counts[name] = counts.get(name, 0) + 1
+        names.append(name if counts[name] == 1 else f"{name}-{counts[name]}")
     return names
+
+
+def rank_block(rank: int, picked: list[Moment]) -> dict:
+    """The clip's place in the whole batch: `rank` 1 = best, its score and the score relative to the best."""
+    best = max((m.score for m in picked), default=0.0) or 1.0
+    score = picked[rank - 1].score
+    return {"rank": rank, "of": len(picked), "score": round(score, 2), "relative_score": round(score / best, 3)}
 
 
 def clip_group(sequences: list[Sequence], spatial: dict[int, dict], pov: Sequence) -> tuple[list[Sequence], dict[int, dict]]:
@@ -289,6 +297,8 @@ def run_batch(
     from highlights.analysis.slowmo import best_kill, choose
 
     names = clip_names([(label_of[id(demo)], moment) for demo, moment in picked])
+    rank_of = {id(moment): i for i, (_, moment) in enumerate(picked, 1)}
+    picked_moments = [moment for _, moment in picked]
     slow_picks = choose([best_kill(moment) for _, moment in picked])
     slow_of = {id(moment): pick for (_, moment), pick in zip(picked, slow_picks)}
     slow_cells = ["" if p is None else f"{p.reason} → {p.kill.victim_name}" for p in slow_picks]
@@ -331,6 +341,7 @@ def run_batch(
             report = output_dir / f"{clip.name}.json"
             write_report(report, job.demo, clip.group, spatial_by_sequence=clip.spatial)
             data = json.loads(report.read_text(encoding="utf-8"))
+            data["batch"] = rank_block(rank_of[id(clip.pov.moments[0])], picked_moments)
             data["slowmo_suggestion"] = slowmo_hint(slow_of.get(id(clip.pov.moments[0])), clip.pov, job.demo.tickrate)
             if match is not None:
                 data["match"] = match

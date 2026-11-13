@@ -963,7 +963,7 @@ def scan(
     type=click.Path(file_okay=False, path_type=Path),
     default=Path("highlights-out"),
     show_default=True,
-    help="Where <label>-<player>-<n>.mp4 and .json are written",
+    help="Where <label>-<player>-r<round>.mp4 and .json are written",
 )
 @click.option("--fps", type=int, default=None, help="Recording framerate")
 @click.option("--width", type=int, default=None, help="Recording width")
@@ -1112,7 +1112,7 @@ def batch(
     DEMO is PATH, LABEL=PATH (the label names the files) or a folder of demos (--recursive for its
     sub-folders; each demo is labelled by its file name). The best --top moments of all
     demos (optionally only the given players) are picked, then every demo is recorded once
-    and each moment is written as <label>-<player>-<n>.mp4 with its own .json report.
+    and each moment is written as <label>-<player>-r<round>.mp4 with its own .json report.
     """
     from highlights.analysis.selection import parse_numbers, parse_rounds
     from highlights.batch import DemoJob, parse_demo_arg, run_batch, team_steamids
