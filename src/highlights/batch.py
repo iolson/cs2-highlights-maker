@@ -386,9 +386,9 @@ def plan_buildup_sequences(
     """A build-up cam-path shot per clip from the same round before the clip starts; writes each
     `<name>-buildup.json` and returns the sequences (numbered after the others) and id(sequence) -> name."""
     from highlights.broll import plan_buildups, shot_report, shot_sequences
-    from highlights.recording.campaths import load_campaths, resolve_campaths_dir
+    from highlights.recording.campaths import load_campaths, resolve_campaths_dirs
 
-    paths = load_campaths(resolve_campaths_dir(config), job.demo.map_name)
+    paths = load_campaths(resolve_campaths_dirs(config), job.demo.map_name)
     if not paths:
         warn(f"{job.label}: no cam paths for {job.demo.map_name}, no build-up shots")
         return [], {}

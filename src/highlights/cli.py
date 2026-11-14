@@ -88,14 +88,14 @@ def _analyze(demo: DemoData, config: Config, queries: list[str], round_rules: li
 def _load_cinematic_inputs(config: Config, map_name: str) -> tuple[list, PlaceMap | None, dict[str, str]]:
     """Cam paths, place map and labels for a cinematic run (shared by --cinematic and --suggest-cinematic)."""
     from highlights.places import load_places
-    from highlights.recording.campaths import load_campaths, resolve_campaths_dir
+    from highlights.recording.campaths import describe_dirs, load_campaths, resolve_campaths_dirs
     from highlights.recording.path_routes import load_labels
 
-    campaths_dir = resolve_campaths_dir(config)
-    campaths = load_campaths(campaths_dir, map_name)
+    campaths_dirs = resolve_campaths_dirs(config)
+    campaths = load_campaths(campaths_dirs, map_name)
     if not campaths:
         raise click.ClickException(
-            f"No cam paths for {map_name} in {campaths_dir} — "
+            f"No cam paths for {map_name} in {describe_dirs(campaths_dirs)} — "
             "put them in a folder named after the map (see README, 'Cinematic cam paths')"
         )
     info(f"Cinematic: {len(campaths)} cam path(s) found for {map_name}")
@@ -105,7 +105,7 @@ def _load_cinematic_inputs(config: Config, map_name: str) -> tuple[list, PlaceMa
             f"No place map for {map_name} — run `highlights places build DEMO...` "
             "to see where cam paths go"
         )
-    labels = load_labels(campaths_dir, map_name)
+    labels = load_labels(campaths_dirs, map_name)
     return campaths, place_map, labels
 
 
@@ -593,10 +593,10 @@ def _add_static_cams(
     sequences: list[Sequence], spatial: dict[int, dict], demo: DemoData, config: Config, mode, work_dir: Path, floors=None
 ) -> tuple[list[Sequence], dict[int, dict]]:
     """--static-cam: add static-cam takes, or warn (and change nothing) when the map has none."""
-    from highlights.recording.campaths import resolve_campaths_dir
+    from highlights.recording.campaths import resolve_campaths_dirs
     from highlights.recording.static_cams import STATIC_DIR, STATIC_FILE, add_static_sequences, load_static_cams
 
-    cams = load_static_cams(resolve_campaths_dir(config), demo.map_name)
+    cams = load_static_cams(resolve_campaths_dirs(config), demo.map_name)
     if not cams:
         warn(
             f"No static cams for {demo.map_name}: add campaths/<Map>/{STATIC_FILE} or {STATIC_DIR}/*.campath "
@@ -613,11 +613,11 @@ def _add_static_downtime(
 ) -> tuple[list[Sequence], dict[int, dict]]:
     """--static-downtime: cut static cams into the down time, or warn (and change nothing) when the map has none."""
     from highlights.broll import sample_players
-    from highlights.recording.campaths import resolve_campaths_dir
+    from highlights.recording.campaths import resolve_campaths_dirs
     from highlights.recording.static_cams import STATIC_DIR, STATIC_FILE, load_static_cams
     from highlights.recording.static_downtime import add_static_downtime
 
-    cams = load_static_cams(resolve_campaths_dir(config), demo.map_name)
+    cams = load_static_cams(resolve_campaths_dirs(config), demo.map_name)
     if not cams:
         warn(f"No static cams for {demo.map_name}: add campaths/<Map>/{STATIC_FILE} or {STATIC_DIR}/*.campath — no static down time")
         return sequences, spatial
@@ -1351,7 +1351,7 @@ def broll(
     """
     from highlights.batch import DemoJob, parse_demo_arg
     from highlights.broll import run_broll
-    from highlights.recording.campaths import load_campaths, resolve_campaths_dir
+    from highlights.recording.campaths import describe_dirs, load_campaths, resolve_campaths_dirs
 
     config = load_config()
     for name, value in (("fps", fps), ("width", width), ("height", height), ("crf", crf)):
@@ -1380,14 +1380,14 @@ def broll(
     if not jobs:
         raise click.ClickException("None of the demos could be read")
 
-    campaths_dir = resolve_campaths_dir(config)
+    campaths_dirs = resolve_campaths_dirs(config)
 
     def campaths_for(map_name: str) -> list:
-        paths = load_campaths(campaths_dir, map_name)
+        paths = load_campaths(campaths_dirs, map_name)
         if cinematic_path:
             paths = [p for p in paths if p.name.lower() == cinematic_path.lower()]
         if not paths:
-            warn(f"No cam paths for {map_name} in {campaths_dir}" + (f" named {cinematic_path!r}" if cinematic_path else ""))
+            warn(f"No cam paths for {map_name} in {describe_dirs(campaths_dirs)}" + (f" named {cinematic_path!r}" if cinematic_path else ""))
         return paths
 
     started = time.monotonic()
@@ -1437,7 +1437,7 @@ def check_ingame(
     look for: confirms the in-game assumptions (kill feed, names, cam paths, alignment) in one run."""
     from highlights.batch import DemoJob
     from highlights.ingame_check import run_check
-    from highlights.recording.campaths import load_campaths, resolve_campaths_dir
+    from highlights.recording.campaths import load_campaths, resolve_campaths_dirs
     from highlights.recording.recorder import RecordingSetupError
 
     config = load_config()
@@ -1460,7 +1460,7 @@ def check_ingame(
     if not candidates:
         raise click.ClickException("No play with a kill to check — try another demo or player")
     moment = max(candidates, key=lambda m: (m.kill_count >= 2, m.score))
-    campaths = load_campaths(resolve_campaths_dir(config), parsed.map_name)
+    campaths = load_campaths(resolve_campaths_dirs(config), parsed.map_name)
     try:
         checklist = run_check(DemoJob(demo.stem, demo, parsed, work_dir), config, moment, campaths, output_dir)
     except RecordingSetupError as exc:
@@ -1615,18 +1615,18 @@ def doctor() -> None:
         str(plugin_dll or "install CS Demo Manager or put server.dll in vendor/cs2-plugin/"),
     )
 
-    from highlights.recording.campaths import resolve_campaths_dir
+    from highlights.recording.campaths import CAMPATH_SUFFIXES, describe_dirs, resolve_campaths_dirs
 
-    campaths_dir = resolve_campaths_dir(config)
-    campath_files = (
-        sum(1 for f in campaths_dir.rglob("*") if f.is_file() and f.suffix.lower() in {".dz", ".campath", ".xml"})
-        if campaths_dir.is_dir()
-        else 0
+    campaths_dirs = resolve_campaths_dirs(config)
+    campath_files = sum(
+        1 for d in campaths_dirs if d.is_dir() for f in d.rglob("*") if f.is_file() and f.suffix.lower() in CAMPATH_SUFFIXES
     )
+    missing = [str(d) for d in campaths_dirs if not d.is_dir()]
+    where = describe_dirs(campaths_dirs) + (f" (missing: {', '.join(missing)})" if missing else "")
     row(
         "Cinematic cam paths",
         True if campath_files else None,
-        f"{campath_files} file(s) in {campaths_dir}" if campath_files else f"none in {campaths_dir} (optional, for --cinematic)",
+        f"{campath_files} file(s) in {where}" if campath_files else f"none in {where} (optional, for --cinematic)",
     )
 
     from highlights.config import app_data_dir

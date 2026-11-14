@@ -15,6 +15,10 @@ Everything in this folder except this README is gitignored, so purchased or
 otherwise licensed paths never reach the repository. Do not commit them and do
 not copy them anywhere else in the repo (tests use generated paths only).
 
+This folder is only the default. `campaths_dir` under `[paths]` in the config can point
+elsewhere, or list several folders that are all read (the earlier one wins a name clash):
+`campaths_dir = ["~/code/cs2-campaths", "~/campaths-premium"]`.
+
 ## Labels (optional)
 
 Add a `labels.toml` next to a map's cam path files to give paths human-readable

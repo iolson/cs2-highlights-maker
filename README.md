@@ -247,7 +247,17 @@ purchased observer pack) and keep them out of git.
 
    `campaths/` is gitignored (apart from its README), as are `*.dz` and
    `*.campath` everywhere, so these files cannot be committed by accident.
-   To use another location set `campaths_dir` under `[paths]` in the config.
+   To use another location set `campaths_dir` under `[paths]` in the config. It also takes a
+   list, e.g. a free library plus a paid pack; every folder's map folders are read, in order:
+
+   ```toml
+   [paths]
+   campaths_dir = ["~/code/cs2-campaths", "~/campaths-premium"]   # "auto" = this repo's campaths/
+   ```
+
+   Names identify paths and static cams (`--cinematic-path`, `--static-cam`, `labels.toml`), so
+   when two folders have the same name (case-insensitive) the earlier folder wins and a warning
+   says which was skipped; rename one to use both. `highlights doctor` lists the folders.
 2. Run `highlights match.dem --cinematic`. For each play the cam paths that
    pass closest to its kills are chosen; `--cinematic-takes 2` records the two
    best matches. Each cinematic clip follows its POV clip in the final video,

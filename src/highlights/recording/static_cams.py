@@ -31,7 +31,7 @@ from rich.markup import escape
 
 from highlights.floors import Floors
 from highlights.models import Sequence
-from highlights.recording.campaths import CAMPATH_SUFFIXES, _forward, map_folders
+from highlights.recording.campaths import CAMPATH_SUFFIXES, _forward, first_by_name, map_folders
 from highlights.recording.cinematic import _action_targets, _target_at
 from highlights.recording.dyn_sequences import insert_takes
 from highlights.recording.dyncams import MIN_POINTS, Pose, write_campath
@@ -113,10 +113,10 @@ def _from_campath(file: Path) -> StaticCam | None:
     return StaticCam(file.stem, pos, pitch, yaw, float(first.get("fov", DEFAULT_FOV)))
 
 
-def load_static_cams(base: Path, map_name: str) -> list[StaticCam]:
-    """Static cams for a map: `static.toml` entries, then `static/` cam path files."""
+def load_static_cams(bases: Path | list[Path], map_name: str) -> list[StaticCam]:
+    """Static cams for a map: per map folder `static.toml` entries, then `static/` cam path files."""
     cams: list[StaticCam] = []
-    for folder in map_folders(base, map_name):
+    for folder in map_folders(bases, map_name):
         table = folder / STATIC_FILE
         if table.is_file():
             try:
@@ -132,7 +132,7 @@ def load_static_cams(base: Path, map_name: str) -> list[StaticCam]:
             for file in sorted(files.iterdir()):
                 if file.suffix.lower() in CAMPATH_SUFFIXES and (cam := _from_campath(file)):
                     cams.append(cam)
-    return cams
+    return first_by_name(cams, "static cam")
 
 
 def _victims(spatial: dict) -> list[tuple[str, Point]]:

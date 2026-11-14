@@ -15,8 +15,10 @@ from highlights.recording.campaths import (
     path_distance,
     pose_at,
     rank_campaths,
-    resolve_campaths_dir,
+    resolve_campaths_dirs,
 )
+from highlights.recording.path_routes import load_labels
+from highlights.recording.static_cams import load_static_cams
 
 
 def write_campath(folder, name="p", points=(), suffix=".dz"):
@@ -303,11 +305,34 @@ def test_rank_campaths_breaks_ties_by_name(tmp_path):
     assert [p.name for p in ranked] == ["alpha", "zeta"]
 
 
-def test_resolve_campaths_dir_auto_and_override(tmp_path):
-    """Default config resolves to the repo campaths folder; an explicit path wins."""
-    default = resolve_campaths_dir(Config())
-    assert default == default_campaths_dir()
-    assert default.name == "campaths"
+def test_resolve_campaths_dirs_auto_override_and_list(tmp_path):
+    """Default config resolves to the repo campaths folder; an explicit path wins; a list keeps its
+    order, "auto" inside it is the repo folder and duplicates are dropped."""
+    assert resolve_campaths_dirs(Config()) == [default_campaths_dir()]
+    assert default_campaths_dir().name == "campaths"
     config = Config()
     config.paths.campaths_dir = str(tmp_path)
-    assert resolve_campaths_dir(config) == tmp_path
+    assert resolve_campaths_dirs(config) == [tmp_path]
+    config.paths.campaths_dir = [str(tmp_path / "free"), "auto", str(tmp_path / "free")]
+    assert resolve_campaths_dirs(config) == [tmp_path / "free", default_campaths_dir()]
+    config.paths.campaths_dir = []
+    assert resolve_campaths_dirs(config) == [default_campaths_dir()]
+
+
+def test_several_dirs_are_merged_and_the_first_wins_a_name(tmp_path):
+    """Paths, static cams and labels come from every folder; on a name clash the earlier folder wins."""
+    free, paid = tmp_path / "free", tmp_path / "paid"
+    write_campath(free / "Nuke", "A1", [point(0, x=1), point(1)])
+    write_campath(free / "Nuke", "B1", [point(0), point(1)])
+    write_campath(paid / "de_nuke", "a1", [point(0, x=2), point(1)])
+    write_campath(paid / "de_nuke", "Heaven", [point(0), point(1)])
+    (free / "Nuke" / "labels.toml").write_text('A1 = "free A"\n')
+    (paid / "de_nuke" / "labels.toml").write_text('a1 = "paid A"\nHeaven = "heaven"\n')
+    (free / "Nuke" / "static.toml").write_text('[ramp]\npos = [0, 0, 0]\nangles = [0, 0]\n')
+    (paid / "de_nuke" / "static.toml").write_text('[Ramp]\npos = [9, 9, 9]\nangles = [0, 0]\n[silo]\npos = [1, 1, 1]\nangles = [0, 0]\n')
+    paths = load_campaths([free, paid], "de_nuke")
+    assert [p.name for p in paths] == ["A1", "B1", "Heaven"] and paths[0].keyframes[0].pos[0] == 1.0
+    assert load_labels([free, paid], "de_nuke") == {"a1": "free A", "heaven": "heaven"}
+    cams = load_static_cams([free, paid], "de_nuke")
+    assert [(c.name, c.pos) for c in cams] == [("ramp", (0.0, 0.0, 0.0)), ("silo", (1.0, 1.0, 1.0))]
+    assert [p.name for p in load_campaths([tmp_path / "missing", paid], "de_nuke")] == ["Heaven", "a1"]

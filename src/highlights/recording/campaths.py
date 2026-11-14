@@ -47,10 +47,21 @@ def default_campaths_dir() -> Path:
     return Path(__file__).resolve().parents[3] / "campaths"
 
 
-def resolve_campaths_dir(config: Config) -> Path:
-    if config.paths.campaths_dir != "auto":
-        return Path(config.paths.campaths_dir).expanduser()
-    return default_campaths_dir()
+def resolve_campaths_dirs(config: Config) -> list[Path]:
+    """The cam path folders to read, in priority order. `campaths_dir` is one folder or a list
+    (e.g. a free library and a paid one); "auto" stands for <repo>/campaths."""
+    value = config.paths.campaths_dir
+    entries = [value] if isinstance(value, str) else list(value)
+    dirs: list[Path] = []
+    for entry in entries:
+        folder = default_campaths_dir() if entry == "auto" else Path(entry).expanduser()
+        if folder not in dirs:
+            dirs.append(folder)
+    return dirs or [default_campaths_dir()]
+
+
+def describe_dirs(dirs: list[Path]) -> str:
+    return ", ".join(str(d) for d in dirs)
 
 
 def _normalize(v: tuple[float, float, float]) -> tuple[float, float, float]:
@@ -152,22 +163,37 @@ def pose_at(path: CamPath, t: float) -> tuple[tuple[float, float, float], tuple[
     return keys[-1].pos, keys[-1].forward, keys[-1].fov
 
 
-def map_folders(base: Path, map_name: str) -> list[Path]:
-    """Subfolders of `base` named like the map ("Nuke" or "de_nuke"), sorted."""
-    if not base.is_dir():
-        return []
+def map_folders(bases: Path | list[Path], map_name: str) -> list[Path]:
+    """Subfolders named like the map ("Nuke" or "de_nuke"): per base in the given order, sorted within one."""
     wanted = {map_name.lower(), map_name.lower().removeprefix("de_")}
-    return [folder for folder in sorted(base.iterdir()) if folder.is_dir() and folder.name.lower() in wanted]
+    folders: list[Path] = []
+    for base in [bases] if isinstance(bases, Path) else bases:
+        if base.is_dir():
+            folders += [f for f in sorted(base.iterdir()) if f.is_dir() and f.name.lower() in wanted]
+    return folders
 
 
-def load_campaths(base: Path, map_name: str) -> list[CamPath]:
-    """Cam paths for a map, from the subfolder named like it ("Nuke" or "de_nuke")."""
+def first_by_name(items: list, kind: str) -> list:
+    """Drop items whose name (case-insensitive) an earlier one already has: names identify cams
+    everywhere (--cinematic-path, labels, work files), so the earlier folder wins."""
+    kept: dict[str, object] = {}
+    for item in items:
+        key = item.name.lower()
+        if key in kept:
+            warn(f"Two {kind}s named {item.name!r}: using the first one found, rename one to use both")
+            continue
+        kept[key] = item
+    return list(kept.values())
+
+
+def load_campaths(bases: Path | list[Path], map_name: str) -> list[CamPath]:
+    """Cam paths for a map, from the subfolders named like it ("Nuke" or "de_nuke") in every base."""
     paths: list[CamPath] = []
-    for folder in map_folders(base, map_name):
+    for folder in map_folders(bases, map_name):
         for file in sorted(folder.iterdir()):
             if file.suffix.lower() in CAMPATH_SUFFIXES and (parsed := parse_campath(file)):
                 paths.append(parsed)
-    return paths
+    return first_by_name(paths, "cam path")
 
 
 def _weighted_distance(a: tuple[float, float, float], b: tuple[float, float, float]) -> float:

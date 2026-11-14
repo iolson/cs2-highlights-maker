@@ -29,7 +29,8 @@ class PathsConfig:
     ffmpeg_exe: str = "auto"
     plugin_dll: str = "auto"
     work_dir: str = "auto"
-    campaths_dir: str = "auto"  # auto: <repo>/campaths (gitignored, user-supplied)
+    # One folder or a list (searched in order, first name wins); auto: <repo>/campaths (gitignored, user-supplied).
+    campaths_dir: str | list[str] = "auto"
 
 
 @dataclass

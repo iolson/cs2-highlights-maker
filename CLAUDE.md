@@ -57,6 +57,10 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   built by `highlights places build DEMO...` (accumulates across runs), `places list` shows it.
   `route_of(points, place_map)` turns positions into a compressed place sequence
   (e.g. `Silo > Outside > Mini > BombsiteA`) — used to describe clips and cam paths.
+- Cam path folders: `[paths] campaths_dir` is one folder or a list (`campaths.resolve_campaths_dirs`, "auto" = the
+  repo's `campaths/`). `map_folders` takes the list, so `load_campaths`/`load_static_cams`/`load_labels` read every
+  folder in order; `first_by_name` keeps the first path/static cam per case-insensitive name (names are ids), labels
+  likewise.
 - `recording/path_routes.py` — `path_route(path, place_map)` (places a cam path passes through)
   and `load_labels` (optional `campaths/<Map>/labels.toml`, file name → friendly name); both show
   in the `--cinematic` candidate lists and in `cinematic.candidates` (`route`, `label`). Log text

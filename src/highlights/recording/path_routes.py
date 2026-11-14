@@ -35,13 +35,13 @@ def path_route(path: CamPath, place_map: PlaceMap, step: float = 0.5) -> list[st
     return route_of(positions, place_map)
 
 
-def load_labels(base: Path, map_name: str) -> dict[str, str]:
+def load_labels(bases: Path | list[Path], map_name: str) -> dict[str, str]:
     """Cam path labels for a map, from `labels.toml` in its folder(s).
 
     Every top-level string value becomes a label keyed by the lowercased file
-    stem; a missing or invalid file contributes nothing."""
+    stem (the first folder wins, as for the paths); a missing or invalid file contributes nothing."""
     labels: dict[str, str] = {}
-    for folder in map_folders(base, map_name):
+    for folder in map_folders(bases, map_name):
         file = folder / "labels.toml"
         if not file.is_file():
             continue
@@ -56,5 +56,5 @@ def load_labels(base: Path, map_name: str) -> dict[str, str]:
         for key, value in data.items():
             if not isinstance(value, str) or not value.strip():
                 continue
-            labels[key.lower()] = value.strip()
+            labels.setdefault(key.lower(), value.strip())
     return labels
