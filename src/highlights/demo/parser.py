@@ -137,7 +137,8 @@ def ensure_dem_file(path: Path, work_dir: Path) -> Path:
 
 def _normalize_side(value: object) -> str:
     if isinstance(value, (int, float)) and not isinstance(value, bool):
-        return _SIDE_BY_TEAM_NUM.get(int(value), "")
+        # NaN: a round with no winner (e.g. the last round of a demo cut off mid-round)
+        return _SIDE_BY_TEAM_NUM.get(int(value), "") if value == value else ""
     text = str(value or "").upper()
     if text.startswith("T"):  # TERRORIST / T
         return "T"
