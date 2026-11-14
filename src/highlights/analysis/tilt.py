@@ -62,7 +62,7 @@ def plan_sequences(
         return sequences
     candidates: list[tuple[float, Sequence, float, float]] = []
     for sequence in sequences:
-        if sequence.cinematic_of is None or sequence.dynamic_cam is not None:
+        if sequence.cinematic_of is None or sequence.dynamic_cam is not None or sequence.static_downtime:
             continue
         stats = shot_stats(sequence, spatial_by_sequence.get(sequence.number, {}), tickrate)
         if stats is None:

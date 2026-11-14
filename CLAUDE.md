@@ -91,6 +91,14 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   generated 4-point hold path (`dyncams.write_campath`, which refuses < `MIN_POINTS` 4: HLAE cubic interpolation needs 4), `Sequence.static_cam`, added after tilt/slow-mo
   via `insert_takes` (now takes a list per POV). Never spliced or concatenated: `run` copies it to
   `<output>-clipNN-static-<slug>.mp4`, batch to `<name>-static-<slug>.mp4`. Unvalidated in-game.
+- `recording/static_downtime.py` — `--static-downtime auto|pov|enemies` (run and batch, not with `--downtime-cam`):
+  passes = `dyncams.plan_segments(..., None, "static", taken)` (taken = the POV's other takes' splice segments). Per pass
+  `assess_pass` every static cam at `STEP` 0.5 s: POV player share (`_target_at`) and living enemies in view (all
+  players from ONE `broll.sample_players` query over every pass tick, skipped for `pov`; enemies = roster side differs
+  from the active camera's player). `choose`: pov >= `MIN_PLAYER_SHARE`, enemies >= `MIN_ENEMY_SHARE`, auto = enemies
+  when avg >= `AUTO_ENEMIES` 2. One take per winning cam (4-point hold, `Sequence.static_downtime`, splice_segments =
+  its passes), added after the generated cams (before grenade/tilt; tilt skips them). `_splice_cinematics` order:
+  cam path, static down time, generated. Uses `floors`.
 - `recording/grenade_cam.py` — `--grenade-cam auto|all` (run and batch): `spatial.grenade_flights` (the one
   `parse_grenades` query; projectile samples per tick, split into flights at tick gaps because entity ids are
   reused) → `detonate` cuts each flight at its detonation (`DemoData.detonations` from hegrenade_detonate /

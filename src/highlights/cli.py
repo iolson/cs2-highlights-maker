@@ -274,6 +274,13 @@ def _parse_player_names(values: tuple[str, ...]) -> dict[str, str]:
     "or these cams by name",
 )
 @click.option(
+    "--static-downtime",
+    type=click.Choice(["auto", "pov", "enemies"]),
+    default=None,
+    help="Cut your static cams into the down time between kills: pov = the cam that keeps the player in view "
+    "(the rotation), enemies = the cam that sees the most enemies, auto = enemies when a cam sees 2+, else pov",
+)
+@click.option(
     "--vertical",
     type=click.Choice(["blur", "crop"]),
     default=None,
@@ -324,6 +331,7 @@ def run(
     downtime_cam: list[str] | None,
     grenade_cam: str,
     static_cam: str | list[str] | None,
+    static_downtime: str | None,
     vertical: str | None,
     vertical_killfeed: bool,
     timing_offset: float,
@@ -345,10 +353,13 @@ def run(
         raise click.UsageError("--vertical-killfeed needs --vertical blur")
     if suggest_cinematic and cinematic:
         raise click.UsageError("--suggest-cinematic is for previewing; use it without --cinematic")
-    if suggest_cinematic and (intro_cam or downtime_cam or grenade_cam != "off" or static_cam):
+    if suggest_cinematic and (intro_cam or downtime_cam or grenade_cam != "off" or static_cam or static_downtime):
         raise click.UsageError(
-            "--suggest-cinematic cannot be combined with --intro-cam/--downtime-cam/--grenade-cam/--static-cam"
+            "--suggest-cinematic cannot be combined with "
+            "--intro-cam/--downtime-cam/--grenade-cam/--static-cam/--static-downtime"
         )
+    if static_downtime and downtime_cam:
+        raise click.UsageError("--static-downtime and --downtime-cam both fill the down time; pick one")
     config = load_config()
     for section, name, value in (
         (config.selection, "top", top),
@@ -397,7 +408,7 @@ def run(
     spatial = None
     if not cinematic:
         spatial = build_spatial_metadata(parsed, sequences)
-    floors = _floors(parsed) if cinematic or suggest_cinematic or static_cam else None
+    floors = _floors(parsed) if cinematic or suggest_cinematic or static_cam or static_downtime else None
     if suggest_cinematic:
         from highlights.recording.suggest import suggest_cinematics
 
@@ -446,6 +457,9 @@ def run(
             downtime_cam,
             intro_transition,
         )
+
+    if static_downtime:
+        sequences, spatial = _add_static_downtime(sequences, spatial, parsed, config, static_downtime, work_dir, floors)
 
     if grenade_cam != "off":
         from highlights.recording.grenade_cam import add_grenade_sequences
@@ -594,6 +608,25 @@ def _add_static_cams(
     )
 
 
+def _add_static_downtime(
+    sequences: list[Sequence], spatial: dict[int, dict], demo: DemoData, config: Config, mode: str, work_dir: Path, floors=None
+) -> tuple[list[Sequence], dict[int, dict]]:
+    """--static-downtime: cut static cams into the down time, or warn (and change nothing) when the map has none."""
+    from highlights.broll import sample_players
+    from highlights.recording.campaths import resolve_campaths_dir
+    from highlights.recording.static_cams import STATIC_DIR, STATIC_FILE, load_static_cams
+    from highlights.recording.static_downtime import add_static_downtime
+
+    cams = load_static_cams(resolve_campaths_dir(config), demo.map_name)
+    if not cams:
+        warn(f"No static cams for {demo.map_name}: add campaths/<Map>/{STATIC_FILE} or {STATIC_DIR}/*.campath — no static down time")
+        return sequences, spatial
+    with console.status("Choosing static cams for the down time..."):
+        return add_static_downtime(
+            sequences, cams, spatial, demo, mode, work_dir / "staticcams", sample_players, floors
+        )
+
+
 def _apply_slowmo(ffmpeg_exe: Path, recorded: list, clips_dir: Path, crf: int) -> list:
     """Slow the planned window of each POV clip that has one."""
     from highlights.video.slowmo import slow_clip
@@ -634,9 +667,17 @@ def _splice_cinematics(
         sequence = output.sequence
         if sequence.cinematic_of is not None and sequence.splice_segments:
             continue
-        ordered = sorted(takes.get(sequence.number, []), key=lambda take: take[0].sequence.dynamic_cam is not None)
+        # cam path first, static down-time cams over it, generated cams on top
+        ordered = sorted(
+            takes.get(sequence.number, []),
+            key=lambda take: 2 if take[0].sequence.dynamic_cam is not None else 1 if take[0].sequence.static_downtime else 0,
+        )
         for step, (take, take_clip) in enumerate(ordered):
-            kind = "generated cam" if take.sequence.dynamic_cam is not None else "cam path"
+            kind = (
+                "generated cam" if take.sequence.dynamic_cam is not None
+                else "static cam" if take.sequence.static_downtime
+                else "cam path"
+            )  # fmt: skip
             info(
                 f"Splicing {kind} into clip {sequence.number}"
                 + (" with tilt-shift" if take.sequence.tilt else "")
@@ -1040,6 +1081,13 @@ def scan(
     "the player, or these cams by name",
 )
 @click.option(
+    "--static-downtime",
+    type=click.Choice(["auto", "pov", "enemies"]),
+    default=None,
+    help="Cut your static cams into the down time between kills: pov = the cam that keeps the player in view "
+    "(the rotation), enemies = the cam that sees the most enemies, auto = enemies when a cam sees 2+, else pov",
+)
+@click.option(
     "--cinematic-only",
     is_flag=True,
     help="Teaser mode: only cam-path footage (no POV, no audio), one stretch per play where a cam path sees the "
@@ -1104,6 +1152,7 @@ def batch(
     downtime_cam: list[str] | None,
     grenade_cam: str,
     static_cam: str | list[str] | None,
+    static_downtime: str | None,
     cinematic_only: bool,
     speed: float,
     clip_length: float,
@@ -1136,12 +1185,15 @@ def batch(
 
     if teams and names_file is None:
         raise click.UsageError("--team needs --names-file")
+    if static_downtime and downtime_cam:
+        raise click.UsageError("--static-downtime and --downtime-cam both fill the down time; pick one")
     if cinematic_only:
         cinematic = True
         clashing = [
             name for name, value in (
                 ("--intro-cam", intro_cam), ("--downtime-cam", downtime_cam), ("--grenade-cam", grenade_cam != "off"),
                 ("--buildup", buildup), ("--tilt-mode", tilt_mode != "off"), ("--static-cam", static_cam),
+                ("--static-downtime", static_downtime),
             ) if value
         ]  # fmt: skip
         if clashing:
@@ -1239,6 +1291,7 @@ def batch(
         calibrate=not no_kill_sync,
         grenade_cam=grenade_cam,
         static_cam=static_cam,
+        static_downtime=static_downtime,
         cinematic_only=cinematic_only,
         speed=speed,
         clip_length=clip_length,

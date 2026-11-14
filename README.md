@@ -380,6 +380,34 @@ highlights match.dem --static-cam b-site,a-long        # these cams for every pl
 - Not validated in-game yet: same view-cone check as splice mode (walls on the cam's own level are
   not checked), and which of `getpos`/`getpos_exact` gives the free-cam position.
 
+## Static cams in the down time (`--static-downtime auto|pov|enemies`)
+
+Cuts your static cams (the same `static.toml` / `static/` cams as `--static-cam`) into the clip itself,
+in the down time between kills: the rotation to the next fight, or the other team setting up.
+
+```
+highlights match.dem --static-downtime auto
+highlights batch DEMOS... --top 20 -o out --static-downtime enemies
+```
+
+- The down time is the same as for `--downtime-cam`: the gaps between the POV kept around each kill
+  (1 s either side), split at camera switches, at least 2.5 s, at most 12 s, the two longest per clip,
+  minus anything a `--cinematic` cam path already cuts in.
+- Per stretch, every static cam is judged (sampled every 0.5 s, with the view cone and floor check):
+  - `pov`: the cam with the POV player in view longest (at least half the stretch).
+  - `enemies`: the cam with the most living enemies in view on average (at least one enemy in view
+    for half the stretch).
+  - `auto`: `enemies` when that cam sees 2 or more enemies on average, else `pov`, else `enemies`.
+  A stretch no cam qualifies for stays POV.
+- Each winning cam is recorded once over the whole clip (a fixed hold, kill feed hidden) and cut into
+  the POV clip for the stretches it won, like the generated cams; `<name>.mp4` keeps POV length and kill
+  times. Order on top of each other: cam path, static cams, generated/grenade cams.
+- The report lists the cuts under `cinematic.static_downtime` (cam, what it shows, player share,
+  enemies seen).
+- Not combinable with `--downtime-cam` (both fill the down time) or `--suggest-cinematic`; `--static-cam`
+  works alongside it (separate files).
+- Same limits as the other cams: no wall check on the cam's own level, unvalidated in-game.
+
 ## Grenade cam (`--grenade-cam auto|all`)
 
 On `run` and `batch`, a camera rides just behind a grenade the POV player throws, from the moment

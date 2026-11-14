@@ -177,6 +177,7 @@ def write_report(
                     "candidates": s.cinematic_candidates,
                     "generated_cams": s.dynamic_cam,
                     "static_cam": s.static_cam,
+                    "static_downtime": s.static_downtime,
                     "campath_retime": s.campath_retime,
                     "splice_segments": (
                         [{"start_seconds": a, "end_seconds": b} for a, b in s.splice_segments]

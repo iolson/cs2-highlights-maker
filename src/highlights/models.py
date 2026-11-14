@@ -159,6 +159,10 @@ class Sequence:
     # --static-cam take: {"name", "label", "slug", "deaths_seen", "player_seconds", "distance"}; recorded as
     # its own file, never spliced or concatenated.
     static_cam: dict | None = None
+    # --static-downtime take: the down-time passes this static cam won, [{"start_seconds", "end_seconds",
+    # "shows" ("pov"/"enemies"), "cam", "slug", "player_share", "enemy_share", "enemies_avg", "enemies_seen"}];
+    # spliced into the POV clip like a generated cam.
+    static_downtime: list[dict] | None = None
 
     @property
     def name(self) -> str:

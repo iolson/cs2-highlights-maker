@@ -130,6 +130,7 @@ def plan_demo(
     intro_transition: str = "swoop",
     protect_kills: bool = True,
     static_cam: str | list[str] | None = None,
+    static_downtime: str | None = None,
 ) -> tuple[list[Sequence], list[ClipPlan]]:
     """Every sequence to record for this demo (POV plus cinematic/generated takes) and the clips they make."""
     from highlights import cli
@@ -139,7 +140,7 @@ def plan_demo(
     sequences = build_sequences([m for m, _ in picked], demo, config.selection, config.recording, merge=False)
     spatial = build_spatial_metadata(demo, sequences)
     names = {id(m): name for m, name in picked}
-    floors = cli._floors(demo) if cinematic or static_cam else None
+    floors = cli._floors(demo) if cinematic or static_cam or static_downtime else None
 
     if cinematic:
         from highlights.recording.cinematic import add_cinematic_sequences
@@ -175,6 +176,11 @@ def plan_demo(
         sequences, spatial = add_dynamic_sequences(
             sequences, spatial, demo, sample_pov_tracks, job.work_dir / "dyncams", intro_cam, downtime_cam,
             intro_transition,
+        )
+
+    if static_downtime:
+        sequences, spatial = cli._add_static_downtime(
+            sequences, spatial, demo, config, static_downtime, job.work_dir, floors
         )
 
     if grenade_cam != "off":
@@ -249,6 +255,7 @@ def run_batch(
     grenade_cam: str = "off",
     intro_transition: str = "swoop",
     static_cam: str | list[str] | None = None,
+    static_downtime: str | None = None,
     cinematic_only: bool = False,
     speed: float = 1.0,
     clip_length: float = 5.0,
@@ -323,6 +330,7 @@ def run_batch(
         sequences, clips = plan_demo(
             job, mine, config, cinematic, cinematic_path, hold, align, intro_cam, downtime_cam, tilt_mode, grenade_cam,
             intro_transition, protect_kills=not cinematic_only, static_cam=static_cam,
+            static_downtime=static_downtime,
         )
         if cinematic_only:
             from highlights.teaser import plan_takes, record_teaser, write_plans
