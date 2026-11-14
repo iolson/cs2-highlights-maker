@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from math import dist
 
+from highlights.floors import Floors
 from highlights.models import Sequence
 from highlights.places import PlaceMap
 from highlights.recording.campaths import CamPath
@@ -134,6 +135,7 @@ def suggest_cinematics(
     place_map: PlaceMap | None = None,
     labels: dict[str, str] | None = None,
     forced: CamPath | None = None,
+    floors: Floors | None = None,
 ) -> dict[int, dict]:
     """Per input sequence number: does this clip deserve a cinematic, and which path."""
     result, _ = add_cinematic_sequences(
@@ -147,6 +149,7 @@ def suggest_cinematics(
         place_map=place_map,
         labels=labels,
         quiet=True,
+        floors=floors,
     )
     # add_cinematic_sequences renumbers: a POV sequence is followed by its cinematic
     # (if any), so walk the result in order and pair each POV with the next input.

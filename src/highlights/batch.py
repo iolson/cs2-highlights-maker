@@ -139,6 +139,7 @@ def plan_demo(
     sequences = build_sequences([m for m, _ in picked], demo, config.selection, config.recording, merge=False)
     spatial = build_spatial_metadata(demo, sequences)
     names = {id(m): name for m, name in picked}
+    floors = cli._floors(demo) if cinematic or static_cam else None
 
     if cinematic:
         from highlights.recording.cinematic import add_cinematic_sequences
@@ -163,6 +164,7 @@ def plan_demo(
                     hold=hold or align,
                     align=align,
                     protect_kills=protect_kills,
+                    floors=floors,
                 )
         except Exception as exc:  # a map without cam paths must not stop the batch
             warn(f"{job.label}: no cinematic ({exc})")
@@ -189,7 +191,7 @@ def plan_demo(
         sequences = plan_tilt(sequences, spatial, demo.tickrate, tilt_mode)
 
     if static_cam:
-        sequences, spatial = cli._add_static_cams(sequences, spatial, demo, config, static_cam, job.work_dir)
+        sequences, spatial = cli._add_static_cams(sequences, spatial, demo, config, static_cam, job.work_dir, floors)
 
     clips = []
     for pov in (s for s in sequences if s.cinematic_of is None):

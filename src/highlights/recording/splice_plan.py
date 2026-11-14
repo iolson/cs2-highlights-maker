@@ -13,6 +13,7 @@ from bisect import bisect_right
 from collections.abc import Callable
 from math import atan, atan2, degrees, dist, radians, tan
 
+from highlights.floors import Floors
 from highlights.recording.campaths import CamPath, pose_at
 
 SAMPLE_STEP = 0.1  # seconds between visibility checks
@@ -40,7 +41,9 @@ def position_at(samples: Trajectory, t: float) -> Point | None:
     return tuple(x + (y - x) * w for x, y in zip(a, b))  # type: ignore[return-value]
 
 
-def _in_view(position: Point, forward: Point, fov: float, target: Point, margin: float = VIEW_MARGIN) -> bool:
+def _in_view(
+    position: Point, forward: Point, fov: float, target: Point, margin: float = VIEW_MARGIN, floors: Floors | None = None
+) -> bool:
     d = (target[0] - position[0], target[1] - position[1], target[2] - position[2])
     distance = dist(position, target)
     if not 50 < distance <= MAX_DISTANCE:
@@ -66,7 +69,9 @@ def _in_view(position: Point, forward: Point, fov: float, target: Point, margin:
     half_v = atan(tan(half_h) / ASPECT)  # fov is the horizontal angle
     yaw_off = abs(atan2(dot(d, left), ahead))
     pitch_off = abs(atan2(dot(d, up), ahead))
-    return yaw_off <= half_h * margin and pitch_off <= half_v * margin
+    if yaw_off > half_h * margin or pitch_off > half_v * margin:
+        return False
+    return floors is None or not floors.hides(position, target)  # a level below the camera's
 
 
 def _protected_windows(kill_times: list[float]) -> list[tuple[float, float]]:
@@ -93,6 +98,7 @@ def plan_splice(
     path: CamPath,
     kill_times: list[float],
     target_at: Callable[[float], Point | None],
+    floors: Floors | None = None,
 ) -> list[tuple[float, float]]:
     """Segments (start, end) in seconds from clip start where the cinematic replaces the POV.
 
@@ -110,7 +116,7 @@ def plan_splice(
             pose is not None
             and target is not None
             and not any(a <= t <= b for a, b in protected)
-            and _in_view(pose[0], pose[1], pose[2], target)
+            and _in_view(pose[0], pose[1], pose[2], target, floors=floors)
         )
         visible.append(ok)
 

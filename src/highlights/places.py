@@ -82,6 +82,10 @@ class PlaceMap:
     def __len__(self) -> int:
         return len(self._cells)
 
+    def cell_counts(self) -> dict[tuple[int, int, int], int]:
+        """Samples per grid cell (used for floor heights)."""
+        return {cell: sum(counter.values()) for cell, counter in self._cells.items()}
+
     def to_dict(self) -> dict:
         """JSON-friendly snapshot (cell keys are comma-joined ints)."""
         return {

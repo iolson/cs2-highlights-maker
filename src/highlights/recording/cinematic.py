@@ -7,6 +7,7 @@ from dataclasses import replace
 
 from rich.markup import escape
 
+from highlights.floors import Floors
 from highlights.models import Sequence
 from highlights.places import PlaceMap
 from highlights.recording.campaths import CamPath, path_distance, rank_campaths, retime
@@ -68,6 +69,7 @@ def _plan_path(
     target_at: Callable[[float], Point | None],
     hold: bool,
     align: bool,
+    floors: Floors | None = None,
 ) -> tuple[list[tuple[float, float]], dict | None]:
     """Splice segments for a path and the retime that produced them (None = path as it is).
 
@@ -75,11 +77,11 @@ def _plan_path(
     smallest on ties; the path then holds its last pose to the clip's end. `hold` alone keeps
     the start and only sustains the last pose."""
     if not (hold or align):
-        return plan_splice(duration, path, kills, target_at), None
+        return plan_splice(duration, path, kills, target_at, floors), None
     offsets = [i * ALIGN_STEP for i in range(int(max(0.0, duration - MIN_SEGMENT) / ALIGN_STEP) + 1)] if align else [0.0]
     best: tuple[float, list[tuple[float, float]], float] | None = None
     for offset in offsets:
-        segments = plan_splice(duration, retime(path, offset, duration), kills, target_at)
+        segments = plan_splice(duration, retime(path, offset, duration), kills, target_at, floors)
         cover = coverage(segments)
         if best is None or cover > best[0] + 1e-9:
             best = (cover, segments, offset)
@@ -111,6 +113,7 @@ def add_cinematic_sequences(
     hold: bool = False,
     align: bool = False,
     protect_kills: bool = True,
+    floors: Floors | None = None,
 ) -> tuple[list[Sequence], dict[int, dict]]:
     """Follow each POV sequence with cinematic re-recordings of the same ticks.
 
@@ -208,7 +211,7 @@ def add_cinematic_sequences(
         for ranked_path in ranked:
             if chosen is not None and len(plans) >= CANDIDATES_SHOWN:
                 break
-            segs, shift = _plan_path(ranked_path, duration, kills, target_at, hold, align)
+            segs, shift = _plan_path(ranked_path, duration, kills, target_at, hold, align, floors)
             plans.append((ranked_path, segs, shift))
             if chosen is None and coverage(segs) >= threshold:
                 chosen = plans[-1]

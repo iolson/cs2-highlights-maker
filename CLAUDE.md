@@ -159,6 +159,13 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   of >= 2) stored as `review` in the JSON. No pre-recording geometry check exists (no map collision data).
 - `ingame_check.py` — `highlights check-ingame DEMO`: records the best play as POV, cam path (hold), face
   intro and spliced clip and writes `CHECKLIST.md` (what to see when) to confirm the unvalidated assumptions.
+- `floors.py` — level check for every view-cone test (`splice_plan._in_view(..., floors=)`: splice/align,
+  `--suggest-cinematic`, static cams, b-roll/build-ups). `floors_for(demo, place_map)` samples all players once per
+  second of live play (one `_query_positions` call; `cli._floors`, built once per demo in run/batch when cinematic or
+  static cams are on) + place-map cells (middle height, so areas this demo never visits still have floors); counts per
+  column in 32-unit height bins. Floor under a camera = highest bin <= camera z with >= `MIN_SAMPLES` within
+  `SEARCH_RADII` 1/3/6 cells (nearest ring that has one); target < floor - `LEVEL_GAP` 200 = hidden. Tuned on Nuke
+  (upper -416, B -768/-640); no data near the camera = no check. b-roll builds its floors from its own snapshots.
 - `faceit.py` — FACEIT match context: match id from the demo file name / batch label
   (`1-<uuid>-<n>-<m>.dem`), Data API `/matches/{id}` (+ organizer name), key `[faceit] api_key` or
   `FACEIT_API_KEY`, finished matches cached in `~/.cs2-highlights/faceit/`. `run` and `batch` add a
@@ -270,8 +277,9 @@ Set per clip in `build_actions_file`; they deviate from stock CSDM on purpose.
   around each kill (the padding between two kills shrinks, floor 0.4 s, so a
   1.5 s cut still fits in a tight gap), the POV player (via `cameras` + `pov_trajectories`) must sit
   inside the cam path's view cone (horizontal fov, 0.85 margin, 16:9, ≤ 4000
-  units; roll ignored; NO occlusion test, but a camera more than 30 units below the
-  player's feet never sees them: `CAM_BELOW_TOLERANCE`), runs < 1.5 s dropped. Path choice is
+  units; roll ignored; NO wall test, but a camera more than 30 units below the
+  player's feet never sees them: `CAM_BELOW_TOLERANCE`, and with `floors` (floors.py) a target more than
+  `LEVEL_GAP` below the floor under the camera is on another level), runs < 1.5 s dropped. Path choice is
   proximity-first (height difference weighted ×2, `VERTICAL_WEIGHT`, so paths on another
   floor rank behind same-floor ones) (same ranking as append mode): the closest path whose coverage
   is ≥ `MIN_COVERAGE` (= `MIN_SEGMENT`, 1.5 s: at least one cut) wins — coverage is only a gate, NOT the ranking (an

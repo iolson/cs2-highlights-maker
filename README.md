@@ -372,8 +372,13 @@ highlights match.dem --static-cam b-site,a-long        # these cams for every pl
   can print positions over 1,000 units apart with the same angles, so at most one of them is the free
   cam. Until that is checked, the one-point cam path is the safe capture: it is HLAE's own camera pose,
   the same thing playback uses (`mirv_campath print` shows it next to `getpos`/`getpos_exact`).
-- Not validated in-game yet: same view-cone check as splice mode (no wall check), and which of
-  `getpos`/`getpos_exact` gives the free-cam position.
+- Floors: a cam never "sees" a level below its own (Nuke: a cam over A does not see B site through
+  the floor). Floor heights come from where players stood in the demo plus the saved place map
+  (`highlights places build`, which helps for areas the demo never visits, e.g. a wingman match);
+  anything more than 200 units below the floor under the cam counts as another level. The same check
+  applies to `--cinematic` splice matching, `--suggest-cinematic` and b-roll.
+- Not validated in-game yet: same view-cone check as splice mode (walls on the cam's own level are
+  not checked), and which of `getpos`/`getpos_exact` gives the free-cam position.
 
 ## Grenade cam (`--grenade-cam auto|all`)
 
@@ -510,8 +515,9 @@ highlights broll season59-match07=C:\demos\match07.dem --mode players --count 4 
   ticks, players in view) per clip. `--count` is per demo; several demos are recorded in turn.
 - `--seed N` repeats a random pick, `--cinematic-path NAME` restricts it to one cam path,
   `--json-only` plans and writes the JSON without launching CS2 (the log lists each pick).
-- Visibility is a view-cone test on positions, with no wall check: a player behind a wall counts
-  as in view. That errs on the safe side for `empty` and can include a hidden player in `players`.
+- Visibility is a view-cone test on positions with a floor check (a player on a level below the
+  cam is not in view) but no wall check: a player behind a wall on the cam's level counts as in
+  view. That errs on the safe side for `empty` and can include a hidden player in `players`.
 
 ## Tilt-shift (`--tilt-mode auto|on`)
 

@@ -37,7 +37,11 @@ def plan_check(demo: DemoData, config: Config, moment: Moment, campaths: list, w
     spatial = build_spatial_metadata(demo, sequences)
     notes = []
     if campaths:
-        sequences, spatial = add_cinematic_sequences(sequences, campaths, spatial, demo.tickrate, splice=True, hold=True)
+        from highlights.cli import _floors
+
+        sequences, spatial = add_cinematic_sequences(
+            sequences, campaths, spatial, demo.tickrate, splice=True, hold=True, floors=_floors(demo)
+        )
         if len(sequences) == 1:
             notes.append("No cam path sees this play, so the cam-path checks are skipped (try another --player).")
     else:

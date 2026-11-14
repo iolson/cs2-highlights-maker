@@ -29,6 +29,7 @@ from pathlib import Path
 
 from rich.markup import escape
 
+from highlights.floors import Floors
 from highlights.models import Sequence
 from highlights.recording.campaths import CAMPATH_SUFFIXES, _forward, map_folders
 from highlights.recording.cinematic import _action_targets, _target_at
@@ -144,15 +145,17 @@ def _victims(spatial: dict) -> list[tuple[str, Point]]:
     return out
 
 
-def assess(cam: StaticCam, sequence: Sequence, spatial: dict, tickrate: float, names: dict[str, str]) -> dict:
+def assess(
+    cam: StaticCam, sequence: Sequence, spatial: dict, tickrate: float, names: dict[str, str], floors: Floors | None = None
+) -> dict:
     """What the cam sees of a play: deaths in view, seconds of the POV player in view, distance."""
     forward = cam.forward
-    seen = [names.get(s, s) for s, pos in _victims(spatial) if _in_view(cam.pos, forward, cam.fov, pos)]
+    seen = [names.get(s, s) for s, pos in _victims(spatial) if _in_view(cam.pos, forward, cam.fov, pos, floors=floors)]
     target_at = _target_at(sequence, spatial, tickrate)
     steps = int(sequence.duration_seconds(tickrate) / SAMPLE_STEP) + 1
     in_view = sum(
         1 for i in range(steps)
-        if (p := target_at(i * SAMPLE_STEP)) is not None and _in_view(cam.pos, forward, cam.fov, p)
+        if (p := target_at(i * SAMPLE_STEP)) is not None and _in_view(cam.pos, forward, cam.fov, p, floors=floors)
     )
     targets = _action_targets(spatial)
     distance = sum(dist(cam.pos, t) for t in targets) / len(targets) if targets else float("inf")
@@ -190,6 +193,7 @@ def add_static_sequences(
     mode: str | list[str],
     out_dir: Path,
     names: dict[str, str] | None = None,
+    floors: Floors | None = None,
 ) -> tuple[list[Sequence], dict[int, dict]]:
     """Add static-cam takes after each POV sequence's other takes.
 
@@ -204,7 +208,7 @@ def add_static_sequences(
     new_for: dict[int, list[Sequence]] = {}
     for pov in (s for s in sequences if s.cinematic_of is None):
         spatial = spatial_by_sequence.get(pov.number, {})
-        looks = {c.name: assess(c, pov, spatial, tickrate, names or {}) for c in cams}
+        looks = {c.name: assess(c, pov, spatial, tickrate, names or {}, floors) for c in cams}
         if isinstance(mode, list):
             chosen = [looks[by_name[n.lower()].name] for n in mode if n.lower() in by_name]
             for look in chosen:

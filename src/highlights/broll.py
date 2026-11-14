@@ -19,7 +19,9 @@ from pathlib import Path
 from highlights.analysis.selection import MIN_SAFE_TICK
 from highlights.config import Config
 from highlights.demo.parser import DemoData
+from highlights.floors import Floors
 from highlights.models import CameraAction, Sequence
+from highlights.places import load_places
 from highlights.recording.campaths import CamPath, pose_at
 from highlights.recording.splice_plan import VIEW_MARGIN, _in_view
 from highlights.util.log import info, warn
@@ -76,6 +78,7 @@ def _evaluate(
     tickrate: float,
     snapshots: dict[int, list[tuple[str, Point, bool]]],
     margin: float,
+    floors: Floors | None = None,
 ) -> tuple[float, list[str], str] | None:
     """(presence, steamids seen, anchor) for a window, None when position data is missing."""
     steps = int(seconds / SAMPLE_STEP) + 1
@@ -94,12 +97,17 @@ def _evaluate(
                 continue
             if not anchor:
                 anchor = sid
-            if _in_view(pose[0], pose[1], pose[2], xyz, margin):
+            if _in_view(pose[0], pose[1], pose[2], xyz, margin, floors):
                 here = True
                 if sid not in seen:
                     seen.append(sid)
         hits += here
     return hits / steps, seen, anchor
+
+
+def _floors(demo: DemoData, snapshots: dict[int, list[tuple[str, Point, bool]]]) -> Floors:
+    """Floor heights from the sampled windows plus the saved place map (see floors.py)."""
+    return Floors.from_points((xyz for players in snapshots.values() for _, xyz, _ in players), load_places(demo.map_name))
 
 
 def plan_demo_broll(
@@ -120,7 +128,10 @@ def plan_demo_broll(
     rng.shuffle(rounds)
     windows = {r.index: (r.index, r.freeze_end_tick + int(ROUND_LEAD * tickrate), r.end_tick) for r in rounds[: max(3, count * 2)]}
     snapshots = _sample_windows(demo, windows, sampler)
-    return sorted(_search(rng, demo, paths, mode, count, max_length, windows, snapshots), key=lambda s: s.start_tick)
+    floors = _floors(demo, snapshots)
+    return sorted(
+        _search(rng, demo, paths, mode, count, max_length, windows, snapshots, floors), key=lambda s: s.start_tick
+    )
 
 
 def plan_buildups(
@@ -144,6 +155,7 @@ def plan_buildups(
         if round_ is not None:
             windows[key] = (round_index, max(round_.start_tick, MIN_SAFE_TICK), before_tick)
     snapshots = _sample_windows(demo, windows, sampler)
+    floors = _floors(demo, snapshots)
     tickrate = demo.tickrate
     step = max(1, round(SAMPLE_STEP * tickrate))
     margin = EMPTY_MARGIN if mode == "empty" else VIEW_MARGIN
@@ -161,7 +173,7 @@ def plan_buildups(
                     continue
                 start_tick = end_tick - int(seconds * tickrate)
                 start_tick = first + (start_tick - first) // step * step  # stay on the sampling grid
-                evaluated = _evaluate(path, seconds, start_tick, tickrate, snapshots, margin)
+                evaluated = _evaluate(path, seconds, start_tick, tickrate, snapshots, margin, floors)
                 if evaluated is None:
                     continue
                 presence, visible, anchor = evaluated
@@ -192,6 +204,7 @@ def _search(
     max_length: float,
     windows: dict,
     snapshots: dict,
+    floors: Floors | None = None,
 ) -> list[BrollShot]:
     """Random (window, start, path) tries until `count` shots satisfy the mode; shots never overlap."""
     tickrate = demo.tickrate
@@ -219,7 +232,7 @@ def _search(
         end_tick = start_tick + int(seconds * tickrate)
         if any(s.round_index == round_index and start_tick < s.end_tick and s.start_tick < end_tick for s in chosen):
             continue
-        result = _evaluate(path, seconds, start_tick, tickrate, snapshots, margin)
+        result = _evaluate(path, seconds, start_tick, tickrate, snapshots, margin, floors)
         if result is None:
             continue
         presence, visible, anchor = result

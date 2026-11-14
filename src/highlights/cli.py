@@ -397,12 +397,13 @@ def run(
     spatial = None
     if not cinematic:
         spatial = build_spatial_metadata(parsed, sequences)
+    floors = _floors(parsed) if cinematic or suggest_cinematic or static_cam else None
     if suggest_cinematic:
         from highlights.recording.suggest import suggest_cinematics
 
         campaths, place_map, labels = _load_cinematic_inputs(config, parsed.map_name)
         suggestions = suggest_cinematics(
-            sequences, campaths, spatial, parsed.tickrate, place_map=place_map, labels=labels
+            sequences, campaths, spatial, parsed.tickrate, place_map=place_map, labels=labels, floors=floors
         )
     if cinematic:
         from highlights.recording.cinematic import add_cinematic_sequences
@@ -428,6 +429,7 @@ def run(
             labels=labels,
             hold=campath_hold or campath_align,
             align=campath_align,
+            floors=floors,
         )
 
     if intro_cam or downtime_cam:
@@ -468,7 +470,7 @@ def run(
         info(f"Slow-motion: {planned} of {sum(1 for s in sequences if s.cinematic_of is None)} clips")
 
     if static_cam:
-        sequences, spatial = _add_static_cams(sequences, spatial, parsed, config, static_cam, work_dir)
+        sequences, spatial = _add_static_cams(sequences, spatial, parsed, config, static_cam, work_dir, floors)
 
     print_sequences_table(parsed, sequences, spatial)
     if suggestions is not None:
@@ -564,8 +566,17 @@ def _parse_static_cam(value: str | None) -> str | list[str] | None:
     return parse_mode(value)
 
 
+def _floors(demo: DemoData):
+    """Floor heights for the level check of every "camera sees the player" test (floors.py)."""
+    from highlights.floors import floors_for
+    from highlights.places import load_places
+
+    with console.status("Sampling player positions for floor heights..."):
+        return floors_for(demo, load_places(demo.map_name))
+
+
 def _add_static_cams(
-    sequences: list[Sequence], spatial: dict[int, dict], demo: DemoData, config: Config, mode, work_dir: Path
+    sequences: list[Sequence], spatial: dict[int, dict], demo: DemoData, config: Config, mode, work_dir: Path, floors=None
 ) -> tuple[list[Sequence], dict[int, dict]]:
     """--static-cam: add static-cam takes, or warn (and change nothing) when the map has none."""
     from highlights.recording.campaths import resolve_campaths_dir
@@ -579,7 +590,7 @@ def _add_static_cams(
         )
         return sequences, spatial
     return add_static_sequences(
-        sequences, cams, spatial, demo.tickrate, mode, work_dir / "staticcams", demo.player_names
+        sequences, cams, spatial, demo.tickrate, mode, work_dir / "staticcams", demo.player_names, floors
     )
 
 
