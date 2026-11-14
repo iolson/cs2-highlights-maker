@@ -169,3 +169,31 @@ def test_list_empty_shows_hint_then_lists_maps(env, monkeypatch):
     assert result.exit_code == 0, result.output
     assert "de_mirage" in result.output
     assert "2" in result.output  # cell count
+
+
+def test_top_build_places_only_builds_missing_maps(env, monkeypatch):
+    tmp_path, runner = env
+    mirage1, mirage2 = _demo("m1.dem", "de_mirage"), _demo("m2.dem", "de_mirage")
+    nuke = _demo("n.dem", "de_nuke")
+    existing = places.PlaceMap("de_nuke")
+    existing.add(0.0, 0.0, 0.0, "Outside")
+    places.save_places(existing)
+    captured = _install(monkeypatch, {"de_mirage": [(100.0, 200.0, 50.0, "Catwalk")], "de_nuke": [(0.0, 0.0, 0.0, "Ramp")]})
+
+    result = runner.invoke(cli.main, ["top", str(mirage1), str(mirage2), str(nuke), "--min-kills", "1", "--build-places"])
+    assert result.exit_code == 0, result.output
+    assert sorted(captured) == ["m1.dem", "m2.dem"]  # both demos of the missing map, none of nuke
+    assert places.load_places("de_mirage").lookup(100.0, 200.0, 50.0) == "Catwalk"
+    assert places.load_places("de_nuke").lookup(0.0, 0.0, 0.0) == "Outside"  # untouched
+
+    captured.clear()
+    again = runner.invoke(cli.main, ["top", str(mirage1), "--min-kills", "1", "--build-places"])
+    assert again.exit_code == 0 and captured == {} and "already has a place map" in again.output
+
+
+def test_top_without_the_flag_samples_nothing(env, monkeypatch):
+    _, runner = env
+    demo = _demo("x.dem", "de_mirage")
+    captured = _install(monkeypatch, {"de_mirage": [(1.0, 1.0, 1.0, "Mid")]})
+    assert runner.invoke(cli.main, ["top", str(demo), "--min-kills", "1"]).exit_code == 0
+    assert captured == {} and places.load_places("de_mirage") is None

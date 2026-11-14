@@ -744,9 +744,15 @@ def _match_cells(rows: list[tuple[DemoData, Moment]], config: Config) -> list[st
     default="off",
     help="auto: also show which of these clips would get a slow-motion beat, and on which kill",
 )
+@click.option(
+    "--build-places",
+    is_flag=True,
+    help="Build the place map (as `places build`) for every map in these demos that has none saved yet",
+)
 def top(
     demos: tuple[Path, ...],
     recursive: bool,
+    build_places: bool,
     player: str | None,
     players: tuple[str, ...],
     top: int | None,
@@ -782,6 +788,7 @@ def top(
     queries = [*([player] if player else []), *players]
 
     rows: list[tuple[DemoData, Moment]] = []
+    new_places: dict[str, PlaceMap] = {}
     failed = 0
     for demo_path in demos:
         work_dir = _resolve_work_dir(config, demo_path)
@@ -797,6 +804,8 @@ def top(
             f"Parsed [bold]{demo_path.name}[/bold] ({parsed.map_name}): {len(parsed.rounds)} rounds, "
             f"{len(parsed.kills)} kills"
         )
+        if build_places:
+            _add_missing_places(new_places, parsed_path, parsed)
 
         moments = _scored_moments(parsed, config)
 
@@ -814,6 +823,10 @@ def top(
 
     if failed == len(demos):
         raise click.ClickException("None of the demos could be read")
+    for place_map in new_places.values():
+        info(f"Saved place map [bold]{place_map.map_name}[/bold]: {len(place_map)} cells -> {save_places(place_map)}")
+    if build_places and not new_places:
+        info("Every map in these demos already has a place map")
 
     rows, total_seconds = pick_rows(rows, config.selection, config.recording)
     numbers = None
@@ -1468,6 +1481,27 @@ def check_ingame(
     console.print(f"[green]Done:[/green] clips and {checklist} in {output_dir}")
 
 
+def _place_samples(parsed_path: Path, parsed: DemoData, every: float = 1.0) -> list:
+    """Place-name samples of a demo every `every` seconds (raises DemoParseError)."""
+    step = max(1, round(parsed.tickrate * every))
+    return sample_places(parsed_path, list(range(1, parsed.last_tick + 1, step)))
+
+
+def _add_missing_places(maps: dict[str, PlaceMap], parsed_path: Path, parsed: DemoData) -> None:
+    """top --build-places: sample this demo into `maps` when its map has no saved place map
+    (every demo of such a map in the run adds to it; maps that have one are never touched)."""
+    if parsed.map_name not in maps and load_places(parsed.map_name) is not None:
+        return
+    with console.status(f"Sampling places in {parsed_path.name}..."):
+        try:
+            samples = _place_samples(parsed_path, parsed)
+        except DemoParseError as exc:
+            warn(f"{exc} — no place samples from this demo")
+            return
+    if samples:
+        maps.setdefault(parsed.map_name, PlaceMap(parsed.map_name)).add_many(samples)
+
+
 @main.group(name="places")
 def places_group() -> None:
     """Build and inspect the per-map place lookup used to describe where plays happen."""
@@ -1494,10 +1528,8 @@ def build(demos: tuple[Path, ...], every: float) -> None:
                 warn(f"{exc} — skipping this demo")
                 failed += 1
                 continue
-        step = max(1, round(parsed.tickrate * every))
-        ticks = list(range(1, parsed.last_tick + 1, step))
         try:
-            samples = sample_places(parsed_path, ticks)
+            samples = _place_samples(parsed_path, parsed, every)
         except DemoParseError as exc:
             warn(f"{exc} — skipping this demo")
             failed += 1

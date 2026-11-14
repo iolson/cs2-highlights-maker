@@ -92,6 +92,9 @@ highlights places list                   # show saved maps and cell counts
 Run `build` once per map on a few demos (use `--every SECONDS` to sample more
 or less often); results accumulate in `~/.cs2-highlights/places/<map>.json`
 and label where each play happened without parsing the demo again.
+`highlights top FOLDER --recursive --build-places` does the same while ranking, but only for maps
+that have no place map yet: every demo of such a map in the run is sampled (maps that already have
+one are left alone; run `places build` to add more demos to them).
 
 The highlights table has a "Where" column with each clip's route (the places
 the POV player moved through), and every sequence in the JSON report carries
