@@ -17,7 +17,7 @@ Windows-only at the recording stage; analysis runs anywhere.
 
 `highlights top DEMO|FOLDER... [--recursive] [--players ..] [--top N] [--round N|DEMO:N] [--pick 1,2 --exclude 3]` pools and ranks moments across demos and
 prints one table only (no JSON, no recording); players missing from a demo skip that demo.
-`--build-places` (`cli._add_missing_places`): maps with no saved place map get one from every demo of that map in the run (same sampling as `places build`, `_place_samples`); saved maps are never touched.
+`--build-places` (`cli._add_missing_places`): maps with no saved place map get one from every demo of that map in the run (same sampling as `places build`, `_place_samples`); saved maps are never touched. `--rebuild-places`: every map in the run starts empty and its saved map is overwritten.
 Its Length column is `selection.clip_seconds` per row (lead-in/out included), followed by a `Total: 4m 05s` line
 (`report.minutes_seconds`, exact sum; rough for the finished edit: slow-mo, trims and transitions change it).
 

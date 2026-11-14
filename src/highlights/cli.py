@@ -749,10 +749,16 @@ def _match_cells(rows: list[tuple[DemoData, Moment]], config: Config) -> list[st
     is_flag=True,
     help="Build the place map (as `places build`) for every map in these demos that has none saved yet",
 )
+@click.option(
+    "--rebuild-places",
+    is_flag=True,
+    help="Replace the saved place map of every map in these demos with one built from them (e.g. after a map update)",
+)
 def top(
     demos: tuple[Path, ...],
     recursive: bool,
     build_places: bool,
+    rebuild_places: bool,
     player: str | None,
     players: tuple[str, ...],
     top: int | None,
@@ -804,8 +810,8 @@ def top(
             f"Parsed [bold]{demo_path.name}[/bold] ({parsed.map_name}): {len(parsed.rounds)} rounds, "
             f"{len(parsed.kills)} kills"
         )
-        if build_places:
-            _add_missing_places(new_places, parsed_path, parsed)
+        if build_places or rebuild_places:
+            _add_missing_places(new_places, parsed_path, parsed, rebuild=rebuild_places)
 
         moments = _scored_moments(parsed, config)
 
@@ -824,8 +830,9 @@ def top(
     if failed == len(demos):
         raise click.ClickException("None of the demos could be read")
     for place_map in new_places.values():
-        info(f"Saved place map [bold]{place_map.map_name}[/bold]: {len(place_map)} cells -> {save_places(place_map)}")
-    if build_places and not new_places:
+        verb = "Rebuilt" if rebuild_places else "Saved"
+        info(f"{verb} place map [bold]{place_map.map_name}[/bold]: {len(place_map)} cells -> {save_places(place_map)}")
+    if build_places and not rebuild_places and not new_places:
         info("Every map in these demos already has a place map")
 
     rows, total_seconds = pick_rows(rows, config.selection, config.recording)
@@ -1487,10 +1494,11 @@ def _place_samples(parsed_path: Path, parsed: DemoData, every: float = 1.0) -> l
     return sample_places(parsed_path, list(range(1, parsed.last_tick + 1, step)))
 
 
-def _add_missing_places(maps: dict[str, PlaceMap], parsed_path: Path, parsed: DemoData) -> None:
+def _add_missing_places(maps: dict[str, PlaceMap], parsed_path: Path, parsed: DemoData, rebuild: bool = False) -> None:
     """top --build-places: sample this demo into `maps` when its map has no saved place map
-    (every demo of such a map in the run adds to it; maps that have one are never touched)."""
-    if parsed.map_name not in maps and load_places(parsed.map_name) is not None:
+    (every demo of such a map in the run adds to it; maps that have one are never touched).
+    rebuild (--rebuild-places): every map, starting empty, so the saved map is replaced."""
+    if not rebuild and parsed.map_name not in maps and load_places(parsed.map_name) is not None:
         return
     with console.status(f"Sampling places in {parsed_path.name}..."):
         try:

@@ -197,3 +197,18 @@ def test_top_without_the_flag_samples_nothing(env, monkeypatch):
     captured = _install(monkeypatch, {"de_mirage": [(1.0, 1.0, 1.0, "Mid")]})
     assert runner.invoke(cli.main, ["top", str(demo), "--min-kills", "1"]).exit_code == 0
     assert captured == {} and places.load_places("de_mirage") is None
+
+
+def test_top_rebuild_places_replaces_saved_maps(env, monkeypatch):
+    _, runner = env
+    nuke1, nuke2 = _demo("n1.dem", "de_nuke"), _demo("n2.dem", "de_nuke")
+    old = places.PlaceMap("de_nuke")
+    old.add(5000.0, 5000.0, 0.0, "Gone")
+    places.save_places(old)
+    captured = _install(monkeypatch, {"de_nuke": [(0.0, 0.0, 0.0, "Ramp")]})
+
+    result = runner.invoke(cli.main, ["top", str(nuke1), str(nuke2), "--min-kills", "1", "--rebuild-places"])
+    assert result.exit_code == 0, result.output
+    assert sorted(captured) == ["n1.dem", "n2.dem"] and "Rebuilt place map" in result.output
+    rebuilt = places.load_places("de_nuke")
+    assert rebuilt.lookup(5000.0, 5000.0, 0.0) is None and rebuilt.lookup(0.0, 0.0, 0.0) == "Ramp"

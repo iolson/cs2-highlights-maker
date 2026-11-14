@@ -95,6 +95,8 @@ and label where each play happened without parsing the demo again.
 `highlights top FOLDER --recursive --build-places` does the same while ranking, but only for maps
 that have no place map yet: every demo of such a map in the run is sampled (maps that already have
 one are left alone; run `places build` to add more demos to them).
+`--rebuild-places` replaces the saved place map of every map in the run with one built only from
+these demos, for when a map update moves or adds areas (use demos played on the new version).
 
 The highlights table has a "Where" column with each clip's route (the places
 the POV player moved through), and every sequence in the JSON report carries
