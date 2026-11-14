@@ -255,3 +255,25 @@ def test_cli_places_build_skips_failed_demo(cli_env, monkeypatch):
     assert result.exit_code == 0, result.output
     assert "bad.dem" in result.output and "skipping" in result.output
     assert (tmp_path / "places" / "de_mirage.json").exists()
+
+
+def test_unreadable_kills_point_at_a_demoparser2_update(monkeypatch, tmp_path):
+    import pandas as pd
+
+    class OutdatedParser:
+        def __init__(self, path):
+            pass
+
+        def parse_header(self):
+            return {"map_name": "de_nuke"}
+
+        def parse_event(self, name, **kwargs):
+            if name == "player_death":
+                raise Exception("EntityNotFound")  # what demoparser2 0.42.0 raised after a CS2 update
+            return pd.DataFrame()
+
+    monkeypatch.setattr(parser_module, "DemoParser", OutdatedParser)
+    dem = tmp_path / "match.dem"
+    dem.write_bytes(b"PBDEMS2\0")
+    with pytest.raises(DemoParseError, match="newer demoparser2"):
+        parser_module.parse_demo(dem)

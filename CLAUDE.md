@@ -196,6 +196,10 @@ every demoparser2 call use `except BaseException as exc: if not is_parser_error(
 raises `DemoParseError`; commands show it as a one-line error (`run`) or skip that demo with a
 warning (`top`, `places build`); `build_spatial_metadata` degrades to status "unavailable".
 
+A CS2 update can make the installed demoparser2 fail on valid demos (Nov 2026: 0.42.0 raised `EntityNotFound` for
+every `player_death` query on patch 14197 demos; fixed in 0.42.2, now the minimum in pyproject). `player_death` is
+queried without `_safe_event` so that failure reports "needs a newer demoparser2" instead of "no kills found".
+
 ## Recording invariants — do not "simplify" these
 
 Ported from CSDM source (verified June 2026; local reference copies in

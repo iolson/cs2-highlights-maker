@@ -163,6 +163,15 @@ def _safe_event(parser: DemoParser, name: str, **kwargs) -> pd.DataFrame:
     return df
 
 
+def _parser_version() -> str:
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        return version("demoparser2")
+    except PackageNotFoundError:
+        return "(unknown version)"
+
+
 def _col(row: pd.Series, name: str, default=None):
     value = row.get(name, default)
     if pd.isna(value):
@@ -295,13 +304,17 @@ def _parse_demo(path: Path) -> DemoData:
     if not new_match.empty and "tick" in new_match.columns:
         match_start_tick = int(new_match["tick"].max())
 
-    deaths_df = _safe_event(
-        parser,
-        "player_death",
-        player=["team_name"],
-        other=["is_warmup_period"],
-    )
-    if deaths_df.empty:
+    try:
+        deaths_df = parser.parse_event("player_death", player=["team_name"], other=["is_warmup_period"])
+    except BaseException as exc:
+        if not is_parser_error(exc):
+            raise
+        # A valid demo the installed demoparser2 cannot decode, typically right after a CS2 update.
+        raise DemoParseError(
+            f"{path.name}: demoparser2 {_parser_version()} could not read its kills ({exc}) — after a CS2 update "
+            "this usually needs a newer demoparser2: pip install -U demoparser2"
+        ) from exc
+    if not isinstance(deaths_df, pd.DataFrame) or deaths_df.empty:
         raise DemoParseError(f"{path.name}: no kills found — is this a valid CS2 demo?")
     deaths_df = deaths_df.sort_values("tick")
 
