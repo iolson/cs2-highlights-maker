@@ -22,10 +22,18 @@ def run_ffmpeg(ffmpeg_exe: Path, args: list[str]) -> None:
         )
 
 
+def ffprobe_command(ffmpeg_exe: Path) -> str:
+    """ffprobe next to ffmpeg (ffprobe.exe on Windows, ffprobe elsewhere), else the one on PATH."""
+    for name in ("ffprobe.exe", "ffprobe"):
+        sibling = ffmpeg_exe.parent / name
+        if sibling.is_file():
+            return str(sibling)
+    return "ffprobe"
+
+
 def probe_duration(ffmpeg_exe: Path, media_path: Path) -> float:
     """Duration in seconds via ffprobe (assumed to sit next to ffmpeg.exe)."""
-    ffprobe = ffmpeg_exe.parent / "ffprobe.exe"
-    probe_cmd = str(ffprobe) if ffprobe.is_file() else "ffprobe"
+    probe_cmd = ffprobe_command(ffmpeg_exe)
     result = subprocess.run(
         [
             probe_cmd,
