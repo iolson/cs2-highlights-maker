@@ -5,6 +5,7 @@ __pycache__/
 test-output/
 .research/
 *.mp4
+*-broadcast.wav
 *.dem
 *.dem.json
 .idea

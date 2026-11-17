@@ -594,6 +594,85 @@ to it (`<output>-vertical.mp4`, audio copied, timings unchanged).
 - `crop`: the centre 9:16 slice, scaled up; loses the kill feed and the sides.
 - Use `--max-duration 55` to keep the whole video inside a Shorts-style limit.
 
+## Broadcast commentary sync (`highlights broadcast-sync`)
+
+Cuts the tournament broadcast's commentary (caster build-up and reaction) to match your highlights. It
+only writes new files beside your reports: `<name>-broadcast.wav` (48 kHz stereo PCM) and
+`<name>-broadcast-sync.json`. The demo, the VOD, the highlight clips and the reports are never modified,
+and nothing here launches CS2.
+
+**Status: manual anchors only.** You tell it where a few known demo moments are in the VOD; it does the
+rest. Automatic matching (HUD/OCR) and transcription are not implemented. It has only been tested on
+synthetic media so far, not on a real broadcast.
+
+```powershell
+# 1. Reports for the plays you want (no recording needed): run or batch with --json-only.
+highlights final.dem --json-only -o out\highlights.mp4
+
+# 2. Anchor: "round 5's freeze time ended at 1:23:45.2 in the VOD". Add a second one later in the demo to check it.
+highlights broadcast-anchor --demo final.dem --anchors final-anchors.json --vod final-broadcast.mp4 `
+  --round 5 --event freeze_end --vod-time 1:23:45.2
+highlights broadcast-anchor --demo final.dem --anchors final-anchors.json `
+  --round 11 --event kill --kill 2 --vod-time 1:51:07.9
+
+# 3. Preview (writes nothing), then export.
+highlights broadcast-sync --demo final.dem --vod final-broadcast.mp4 --anchors final-anchors.json `
+  --reports-dir out --dry-run
+highlights broadcast-sync --demo final.dem --vod final-broadcast.mp4 --anchors final-anchors.json `
+  --reports-dir out --lead-in 5 --lead-out 8
+```
+
+`broadcast-sync` takes `--report FILE` (repeatable) and/or `--reports-dir DIR` (every highlight report in
+the folder made from `--demo`; others are skipped), `--output-dir` (default: beside each report),
+`--mode highlight|round` (the clip plus padding, or the whole round plus padding), `--lead-in/--lead-out`
+(default 5 s / 8 s; the reaction may run past the clip's end), `--dry-run`, `--allow-review`, `--strict`,
+`--audio-stream N`, `--drift-tolerance`, `--max-anchor-distance`. It reads `run` reports (also
+`--json-only`; cinematic takes are skipped) and `batch` clip reports. Relative paths resolve against the
+current folder, except the anchor file's own `vod` entry, which resolves against the anchor file's folder;
+Windows paths work, and the demo name in reports/anchor files is compared by file name, case-insensitively.
+
+**Finding an anchor.** Pick something you can identify exactly on the broadcast and note the VOD time:
+the round clock starting (`--event freeze_end`) is easiest; `round_start` is the start of freeze time,
+`round_end` is when the round is decided, `kill` with `--kill N` is the Nth kill of the round (the same
+kills the highlights use). The tick is looked up from the demo. Use the moment on screen, not what you
+hear. One anchor is enough to start; add one near any round that comes back `needs_review`.
+
+**Segments.** Inside a segment the VOD is assumed to run 1:1 with game time (`vod = anchor + dt /
+tickrate`, tickrate from the demo). A tech pause, halftime desk segment, replay or broadcast cut breaks
+that, so start a new segment after it: `--segment second-half --rounds 13-24`. Rounds not in any segment
+get `unmatched`. Two anchors in one segment that disagree by more than `--drift-tolerance` (0.5 s) are
+refused: that means something sits between them, so split instead of stretching time. Anchor file format
+(`schema_version` 1; `segments[].round_start/round_end` optional = whole demo):
+
+```json
+{ "schema_version": 1, "demo": "final.dem", "vod": "final-broadcast.mp4",
+  "segments": [ { "id": "main", "kind": "live", "round_start": 1, "round_end": 12,
+    "anchors": [ { "demo_tick": 12500, "vod_seconds": 1023.44, "event": "freeze_end", "verified": true } ] } ] }
+```
+
+**Status per clip** (sidecar `status`, `confidence_basis` lists the evidence; there is no numeric score):
+`matched` = an anchor in the same round, or the clip sits between two consistent anchors, or the nearest
+anchor is within `--max-anchor-distance` (300 s of game time); `needs_review` = the only evidence is
+farther away, or the report has no kill events (not exported unless `--allow-review`, the sidecar still says
+so and lists the candidate times); `unmatched` = no segment covers the round, no verified anchor, or the
+clip falls outside the VOD (no audio, a sidecar with the reason). `--strict` exits with an error if any
+clip is not `matched`.
+
+**Sidecar.** `audio` (VOD start/end, measured length), `alignment.audio_offset_at_highlight_start_seconds`
+(where the highlight's first frame sits in the WAV on the nominal game timeline), `events` (each kill's
+`vod_seconds` and `audio_seconds`), `anchors_used`, `clamps` (padding cut by the segment or the VOD edge),
+`timing` (nominal clip length from the ticks vs the measured length from a finalized report, plus any
+slow-mo) and `review`. The audio is a straight cut at natural speed: it is **not** stretched for slow-mo
+or shifted for kill-feed calibration, so line it up in your editor using the offset and the first kill.
+
+**Troubleshooting.** Commentary lands early/late by a constant amount: the anchor is off (re-check the
+on-screen moment, add a second anchor in another round to see the disagreement). Drift growing through
+the match, or "anchors disagree": a pause/replay/cut is between them, split the segment. Wrong
+commentary right after a halftime or desk break: the clip's round is in a segment whose anchor is before
+the break; give the later rounds their own segment and anchor. `needs_review` everywhere: add anchors
+closer to those rounds, or raise `--max-anchor-distance` if you know the broadcast ran continuously. A
+clip whose observer was watching someone else can have unrelated commentary; that cannot be detected yet.
+
 ## Important notes
 
 - The game is launched strictly with `-insecure` (the plugin enforces this

@@ -193,6 +193,17 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   stand-ins via demo sides) after `write_report`; the cotw overlay tool reads it. Any failure = no block.
   `top` adds a Match column (`cli._match_cells`, row player's side, only demos in the table). `faceit.enabled` warns once without a key.
   `scan` stores `scan.match_summary` (no roster, + scanned player's team/opponent) per demo + Match column.
+- `broadcast/` — `highlights broadcast-sync` / `broadcast-anchor`: cut tournament-broadcast audio per highlight. `anchors.py`
+  (anchor file `schema_version` 1: segments of continuous live play, each with verified `demo_tick` -> `vod_seconds` anchors; `event_tick`
+  looks the tick up from round/event/kill), `timeline.py` (`Timeline`: `vod = nearest anchor + dt / demo.tickrate` inside a segment, anchors
+  disagreeing > `DRIFT_TOLERANCE` 0.5 s are rejected, never warped; segments never bridge a break; tick range = first round start to
+  `POST_ROUND_SECONDS` 5 s after the last round end), `reports.py` (`run`/`--json-only`/`batch` schema-v3 reports, cinematic takes skipped,
+  `check_against_demo`), `matching.py` (`plan_sequence`: window = clip or round + lead-in/out clamped to the segment and VOD; status
+  matched = anchor in the same round / bracketed by two / within `MAX_ANCHOR_DISTANCE` 300 s, else needs_review, no segment/anchor/outside VOD =
+  unmatched; no numeric confidence, `confidence_basis` lists evidence), `audio.py` (ffprobe + `-ss` before `-i` re-encoded cut to 48 kHz
+  stereo pcm_s16le, bitexact), `export.py` (`<stem>-broadcast.wav` + `-broadcast-sync.json`; audio never retimed for slow-mo; stem =
+  report stem, plus `-clipNN` when a report has several POV sequences), `commands.py`. Manual anchors only; OCR/ASR not built. Tested on
+  synthetic media (tests/test_broadcast_audio.py), not yet on a real broadcast.
 - `video/vertical.py` — `--vertical blur|crop` (+ `--vertical-killfeed`): final 1080x1920 copy
   `<output>-vertical.mp4` via one FFmpeg filter pass after the concat (kill-feed crop region constants
   assume the default top-right position).
