@@ -17,6 +17,7 @@ from highlights.analysis.clutch import attach_clutches, detect_clutches
 from highlights.analysis.moments import cluster_moments
 from highlights.analysis.scoring import score_moments
 from highlights.analysis.selection import clip_seconds, eligible_moments, pick_rows, select_sequences
+from highlights.broadcast.commands import broadcast_anchor, broadcast_sync
 from highlights.config import Config, load_config
 from highlights.demo.parser import DemoData, DemoParseError, ensure_dem_file, parse_demo
 from highlights.demo.players import PlayerNotFound, resolve_players
@@ -49,6 +50,10 @@ class DefaultRunGroup(click.Group):
 @click.version_option(__version__)
 def main() -> None:
     """Generate a highlights MP4 from a CS2 demo."""
+
+
+main.add_command(broadcast_sync)
+main.add_command(broadcast_anchor)
 
 
 def _resolve_work_dir(config: Config, demo_path: Path) -> Path:

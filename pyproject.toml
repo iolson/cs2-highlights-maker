@@ -22,6 +22,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
+voice = ["demucs>=4.1", "soundfile>=0.12"]  # highlights broadcast-sync --isolate-voice
 
 [project.scripts]
 highlights = "highlights.cli:main"
