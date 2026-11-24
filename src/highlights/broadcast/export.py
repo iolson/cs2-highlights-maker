@@ -15,6 +15,8 @@ from highlights.broadcast.audio import (
 )
 from highlights.broadcast.models import BroadcastSyncError, ClipPlan
 from highlights.broadcast.reports import LoadedReport
+from highlights.broadcast.voice import MODEL as VOICE_MODEL
+from highlights.broadcast.voice import isolate_voice, voice_path
 
 SIDECAR_SCHEMA = 1
 
@@ -39,6 +41,7 @@ def build_sidecar(
     lead_in: float,
     lead_out: float,
     wav: dict | None,
+    voice: dict | None = None,
 ) -> dict:
     """`wav` = measured info of the exported file (None when no audio was exported)."""
     seq = next(s for s in report.sequences if s.number == plan.sequence_number)
@@ -61,6 +64,16 @@ def build_sidecar(
                 format=SAMPLE_FORMAT,
                 measured_duration_seconds=round(wav["duration_seconds"], 3),
             )
+        if voice is not None:
+            audio["voice"] = {
+                "filename": None,
+                "model": VOICE_MODEL,
+                "sample_rate": voice["sample_rate"],
+                "channels": voice["channels"],
+                "format": SAMPLE_FORMAT,
+                "measured_duration_seconds": round(voice["duration_seconds"], 3),
+                "note": "Commentary-only stem of the same cut: same start, same length, same alignment.",
+            }
         offset = plan.clip_start_vod - window.vod_start
         alignment = {
             "highlight_clip_start_demo_tick": plan.start_tick,
@@ -126,13 +139,15 @@ def export_clip(
     report: LoadedReport,
     allow_review: bool,
     audio_stream: int,
+    voice_device: str | None = None,
     **sidecar_args,
 ) -> dict:
     """Write the sidecar (always) and the WAV (matched, or needs_review with allow_review).
 
+    `voice_device` (None = off) also writes the commentary-only `-broadcast-voice.wav`.
     Returns the sidecar dict; raises BroadcastSyncError when the cut fails.
     """
-    wav = None
+    wav = voice = None
     exports = plan.window is not None and (plan.status == "matched" or (plan.status == "needs_review" and allow_review))
     notes: list[str] = []
     if exports:
@@ -147,9 +162,19 @@ def export_clip(
             )
         if wav["sample_rate"] != SAMPLE_RATE or wav["channels"] != CHANNELS:
             notes.append(f"unexpected WAV format {wav['sample_rate']} Hz / {wav['channels']} ch")
-    data = build_sidecar(plan, report, wav=wav, **sidecar_args)
+        if voice_device is not None:
+            isolated = voice_path(target)
+            isolate_voice(ffmpeg_exe, target, isolated, voice_device)
+            voice = wav_info(isolated)
+            if abs(voice["duration_seconds"] - wav["duration_seconds"]) > DURATION_WARN_SECONDS:
+                notes.append(
+                    f"voice WAV is {voice['duration_seconds']:.3f}s, the cut is {wav['duration_seconds']:.3f}s"
+                )
+    data = build_sidecar(plan, report, wav=wav, voice=voice, **sidecar_args)
     if exports and data["audio"] is not None:
         data["audio"]["filename"] = wav_path(output_dir, plan).name
+        if voice is not None:
+            data["audio"]["voice"]["filename"] = voice_path(wav_path(output_dir, plan)).name
     data["diagnostics"] = notes
     sidecar = sidecar_path(output_dir, plan)
     sidecar.parent.mkdir(parents=True, exist_ok=True)

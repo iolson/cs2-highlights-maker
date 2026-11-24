@@ -202,7 +202,9 @@ the `run` subcommand. Entry point `highlights.cli:main`.
   matched = anchor in the same round / bracketed by two / within `MAX_ANCHOR_DISTANCE` 300 s, else needs_review, no segment/anchor/outside VOD =
   unmatched; no numeric confidence, `confidence_basis` lists evidence), `audio.py` (ffprobe + `-ss` before `-i` re-encoded cut to 48 kHz
   stereo pcm_s16le, bitexact), `export.py` (`<stem>-broadcast.wav` + `-broadcast-sync.json`; audio never retimed for slow-mo; stem =
-  report stem, plus `-clipNN` when a report has several POV sequences), `commands.py`. Manual anchors only; OCR/ASR not built. Tested on
+  report stem, plus `-clipNN` when a report has several POV sequences), `voice.py` (`--isolate-voice [--voice-device]`: demucs `htdemucs` vocals stem run as `sys.executable -m demucs` on the cut WAV, converted
+  back to 48 kHz stereo -> `-broadcast-voice.wav` + sidecar `audio.voice`; optional extra `[voice]`, `require()` fails before any cutting, dry run
+  does not need it; tests fake demucs), `commands.py`. Manual anchors only; OCR/ASR not built. Tested on
   synthetic media (tests/test_broadcast_audio.py), not yet on a real broadcast.
 - `video/vertical.py` — `--vertical blur|crop` (+ `--vertical-killfeed`): final 1080x1920 copy
   `<output>-vertical.mp4` via one FFmpeg filter pass after the concat (kill-feed crop region constants

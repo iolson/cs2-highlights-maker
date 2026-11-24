@@ -631,6 +631,17 @@ the folder made from `--demo`; others are skipped), `--output-dir` (default: bes
 current folder, except the anchor file's own `vod` entry, which resolves against the anchor file's folder;
 Windows paths work, and the demo name in reports/anchor files is compared by file name, case-insensitively.
 
+**Commentary only (`--isolate-voice`).** The cut is the whole broadcast mix: casters plus the observer's game
+sound, crowd and music. `--isolate-voice` also writes `<name>-broadcast-voice.wav` (the casters alone, same
+48 kHz stereo format, same start and length, so the sidecar's alignment applies unchanged; the sidecar gets
+`audio.voice`) by running demucs `htdemucs` (vocals stem) on the cut. It is optional: install it with
+`pip install "cs2-highlights[voice]"` (pulls in PyTorch, several GB) and pick `--voice-device
+auto|cpu|mps|cuda` (auto = cuda, then mps, then cpu; about 13 s per 72 s clip on an Apple GPU). To layer it
+over a POV clip: `ffmpeg -i pov.mp4 -ss 5 -i x-broadcast-voice.wav -filter_complex
+"[0:a]volume=0.6[g];[1:a]volume=2.0[v];[g][v]amix=inputs=2:duration=first:normalize=0,alimiter=limit=0.95[a]"
+-map 0:v -map "[a]" -c:v copy -c:a aac out.mp4` (`-ss` = the sidecar's `audio_offset_at_highlight_start_seconds`).
+Expect some residual game sound under loud action and slight artefacts when a caster shouts over gunfire.
+
 **Finding an anchor.** Pick something you can identify exactly on the broadcast and note the VOD time:
 the round clock starting (`--event freeze_end`) is easiest; `round_start` is the start of freeze time,
 `round_end` is when the round is decided, `kill` with `--kill N` is the Nth kill of the round (the same

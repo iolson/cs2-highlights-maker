@@ -29,6 +29,8 @@ from highlights.broadcast.reports import (
     same_demo_name,
 )
 from highlights.broadcast.timeline import DRIFT_TOLERANCE, Timeline
+from highlights.broadcast.voice import DEVICES as VOICE_DEVICES
+from highlights.broadcast.voice import require as require_voice
 from highlights.config import load_config
 from highlights.demo.parser import DemoParseError, parse_demo
 from highlights.util.log import console, info, warn
@@ -112,6 +114,8 @@ def _collect_reports(reports: tuple[Path, ...], reports_dir: Path | None, demo_p
 @click.option("--audio-stream", type=click.IntRange(min=0), default=0, show_default=True, help="Which audio stream of the VOD to cut (0 = first)")
 @click.option("--drift-tolerance", type=click.FloatRange(min=0), default=DRIFT_TOLERANCE, show_default=True, help="Seconds two anchors of one segment may disagree by")
 @click.option("--max-anchor-distance", type=click.FloatRange(min=0), default=MAX_ANCHOR_DISTANCE, show_default=True, help="Game seconds a clip may be from the nearest anchor and still count as `matched`")
+@click.option("--isolate-voice", is_flag=True, help="Also write <name>-broadcast-voice.wav: the commentary alone, without game sound and music (needs `pip install \"cs2-highlights[voice]\"`)")
+@click.option("--voice-device", type=click.Choice(VOICE_DEVICES), default="auto", show_default=True, help="Where --isolate-voice runs (auto = cuda, then mps, then cpu)")
 def broadcast_sync(
     demo_path: Path,
     vod: Path | None,
@@ -128,12 +132,15 @@ def broadcast_sync(
     audio_stream: int,
     drift_tolerance: float,
     max_anchor_distance: float,
+    isolate_voice: bool,
+    voice_device: str,
 ) -> None:
     """Cut the broadcast commentary for each highlight into a WAV + sync JSON sidecar.
 
     Needs the demo, the broadcast VOD, highlight reports (from `run`, `run --json-only`
     or `batch`) and an anchor file saying where known demo moments are in the VOD.
-    Nothing is modified: only <name>-broadcast.wav and <name>-broadcast-sync.json are written.
+    Nothing is modified: only <name>-broadcast.wav and <name>-broadcast-sync.json are written
+    (plus <name>-broadcast-voice.wav with --isolate-voice).
     Relative paths resolve against the current folder, except the anchor file's `vod`,
     which resolves against the anchor file's folder.
     """
@@ -143,6 +150,8 @@ def broadcast_sync(
         raise click.UsageError("Give --report (repeatable) or --reports-dir")
 
     try:
+        if isolate_voice and not dry_run:
+            require_voice()
         anchors = load_anchor_file(anchors_path)
         if not _same_name(anchors.demo, demo_path):
             raise BroadcastSyncError(f"{anchors_path.name} is for demo {anchors.demo!r}, not {demo_path.name!r}")
@@ -199,6 +208,7 @@ def broadcast_sync(
                     report,
                     allow_review,
                     audio_stream,
+                    voice_device=voice_device if isolate_voice else None,
                     tickrate=float(demo.tickrate),
                     map_name=demo.map_name,
                     demo_name=demo_path.name,
