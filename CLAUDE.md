@@ -324,7 +324,9 @@ Set per clip in `build_actions_file`; they deviate from stock CSDM on purpose.
   through walls). Plays with no eligible path get no cinematic. Candidates
   (distance + coverage) are logged and stored in `cinematic.candidates`;
   `--cinematic-path NAME` forces one path for every play. `video/splice.py` overlays the cinematic with
-  `overlay=enable='between(t,a,b)+…'` (re-encodes, POV audio kept) and
+  `overlay=enable='between(t,a,b)+…'` (re-encodes; POV audio kept unless `--cinematic-audio camera|mix` (run and batch): `audio_filter` gains each
+  input by a `segment_envelope` of the same segments, 50 ms ramps, `asetnsamples` 64 so the per-frame volume ramps smoothly;
+  whether CS2 hears a campath take from the camera is NOT validated) and
   `cli._splice_cinematics` swaps it in for the POV clip, so cinematic clips never
   reach the concat and final clip lengths equal POV lengths (kill times and
   `beat_targets` stay valid). Camera pose: quaternion wins over Euler

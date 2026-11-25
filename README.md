@@ -583,6 +583,26 @@ close-ups, where it just looks out of focus).
 highlights match.dem --cinematic --cinematic-mode splice --tilt-mode auto
 ```
 
+## Cinematic audio (`--cinematic-audio pov|camera|mix`)
+
+By default a spliced clip keeps the POV player's sound the whole time, even while a cam-path or
+generated cam shot is on screen. Each cinematic take records its own sound too, and this flag
+decides what plays during those shots (needs `--cinematic --cinematic-mode splice`; `batch` only
+needs `--cinematic`):
+
+- `pov` (default): the POV player's sound throughout, as before.
+- `camera`: the cinematic take's own recording while its shot is on screen.
+- `mix`: the take's sound at 70% with the POV sound at 30% underneath.
+
+The switch follows the picture cuts with a 50 ms crossfade, so cuts don't click; clip length and
+kill times are unchanged. **Not yet validated in-game:** whether CS2 hears a cinematic take from
+the camera's position or still from the spectated player. If it is the player, `camera` sounds
+almost the same as `pov`. Compare the two once before relying on it.
+
+```powershell
+highlights match.dem --cinematic --cinematic-mode splice --cinematic-audio camera
+```
+
 ## Vertical version (`--vertical`)
 
 Recording stays 16:9; `--vertical blur|crop` adds a 1080x1920 copy of the finished video next

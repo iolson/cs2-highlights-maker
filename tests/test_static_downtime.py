@@ -95,7 +95,7 @@ def test_splice_order_is_cam_path_then_static_then_generated(monkeypatch, tmp_pa
     calls = []
     monkeypatch.setattr(
         "highlights.video.splice.splice_clip",
-        lambda ffmpeg, clip, take, segments, out, crf, tilt=False: calls.append(take.name) or out,
+        lambda ffmpeg, clip, take, segments, out, crf, tilt=False, audio="pov": calls.append(take.name) or out,
     )
     base = pov(1)
     takes = [

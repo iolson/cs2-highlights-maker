@@ -304,6 +304,13 @@ def _no_kill_match(kill_filter, demos: list[DemoData]) -> str:
     "--cinematic-mode splice. auto: only wide, elevated shots; on: every cam-path shot",
 )
 @click.option(
+    "--cinematic-audio",
+    type=click.Choice(["pov", "camera", "mix"]),
+    default="pov",
+    help="Sound during spliced cinematic shots: pov (the POV player's, default), camera (the cinematic "
+    "take's own recording) or mix (camera with the POV underneath); needs --cinematic --cinematic-mode splice",
+)
+@click.option(
     "--campath-hold",
     is_flag=True,
     help="With --cinematic: keep each cam path's last pose until the clip ends instead of returning to the POV",
@@ -403,6 +410,7 @@ def run(
     cinematic_mode: str,
     slow_mode: str,
     tilt_mode: str,
+    cinematic_audio: str,
     campath_hold: bool,
     campath_align: bool,
     intro_cam: list[str] | None,
@@ -433,6 +441,8 @@ def run(
         raise click.UsageError("--campath-align needs --cinematic-mode splice")
     if tilt_mode != "off" and not (cinematic and cinematic_mode == "splice"):
         raise click.UsageError("--tilt-mode needs --cinematic --cinematic-mode splice")
+    if cinematic_audio != "pov" and not (cinematic and cinematic_mode == "splice"):
+        raise click.UsageError("--cinematic-audio needs --cinematic --cinematic-mode splice")
     if vertical_killfeed and vertical != "blur":
         raise click.UsageError("--vertical-killfeed needs --vertical blur")
     if suggest_cinematic and cinematic:
@@ -619,6 +629,7 @@ def run(
                 work_dir / "clips",
                 config.recording.crf,
                 (config.recording.width, config.recording.height),
+                cinematic_audio,
             )
         if any(o.sequence.slowmo for o, _ in recorded):
             recorded = _apply_slowmo(tools.ffmpeg_exe, recorded, work_dir / "clips", config.recording.crf)
@@ -735,7 +746,12 @@ def _apply_slowmo(ffmpeg_exe: Path, recorded: list, clips_dir: Path, crf: int) -
 
 
 def _splice_cinematics(
-    ffmpeg_exe: Path, recorded: list, clips_dir: Path, crf: int, size: tuple[int, int] = (1920, 1080)
+    ffmpeg_exe: Path,
+    recorded: list,
+    clips_dir: Path,
+    crf: int,
+    size: tuple[int, int] = (1920, 1080),
+    audio: str = "pov",
 ) -> list:
     """Replace each POV clip with its spliced version; spliced cinematic clips leave the list.
 
@@ -777,6 +793,7 @@ def _splice_cinematics(
                 clips_dir / f"spliced_{sequence.number:02d}_{step}.mp4",
                 crf,
                 tilt=size if take.sequence.tilt else None,
+                audio=audio,
             )
         result.append((output, clip))
     return result
@@ -1161,6 +1178,12 @@ def scan(
     default="off",
     help="Tilt-shift look on cam-path shots (needs --cinematic): auto = wide, elevated shots only, on = all",
 )
+@click.option(
+    "--cinematic-audio",
+    type=click.Choice(["pov", "camera", "mix"]),
+    default="pov",
+    help="Sound during cinematic shots (needs --cinematic): pov, camera (the take's own) or mix",
+)
 @click.option("--campath-hold", is_flag=True, help="Keep each cam path's last pose until the clip ends")
 @click.option("--campath-align", is_flag=True, help="Also start each cam path late, where it sees the player longest")
 @click.option(
@@ -1264,6 +1287,7 @@ def batch(
     cinematic: bool,
     cinematic_path: str | None,
     tilt_mode: str,
+    cinematic_audio: str,
     campath_hold: bool,
     campath_align: bool,
     intro_cam: list[str] | None,
@@ -1330,6 +1354,8 @@ def batch(
         raise click.UsageError("--campath-hold/--campath-align/--cinematic-path need --cinematic")
     if tilt_mode != "off" and not cinematic:
         raise click.UsageError("--tilt-mode needs --cinematic")
+    if cinematic_audio != "pov" and not cinematic:
+        raise click.UsageError("--cinematic-audio needs --cinematic")
     config = load_config()
     for section, name, value in (
         (config.selection, "top", top),
@@ -1405,6 +1431,7 @@ def batch(
         intro_transition=intro_transition,
         downtime_cam=downtime_cam,
         tilt_mode=tilt_mode,
+        cinematic_audio=cinematic_audio,
         round_rules=round_rules,
         pick=pick_numbers,
         exclude=exclude_numbers,

@@ -243,6 +243,7 @@ def run_batch(
     intro_cam: list[str] | None = None,
     downtime_cam: list[str] | None = None,
     tilt_mode: str = "off",
+    cinematic_audio: str = "pov",
     round_rules: list | None = None,
     pick: list[int] | None = None,
     exclude: list[int] | None = None,
@@ -375,7 +376,7 @@ def run_batch(
             continue
         written += _record_demo(
             job, sequences, clips, buildups, config, output_dir, keep_clips or reuse_recordings, timing_offset,
-            reuse_recordings, calibrate,
+            reuse_recordings, calibrate, cinematic_audio,
         )
     if written and review:
         from highlights.recording.recorder import resolve_tools
@@ -493,6 +494,7 @@ def _record_demo(
     timing_offset: float,
     reuse: bool = False,
     calibrate: bool = True,
+    cinematic_audio: str = "pov",
 ) -> list[Path]:
     from highlights import cli
     from highlights.recording.recorder import RecordingSetupError, resolve_tools
@@ -536,7 +538,8 @@ def _record_demo(
 
     if any(o.sequence.splice_segments for o, _ in recorded):
         recorded = cli._splice_cinematics(
-            tools.ffmpeg_exe, recorded, clips_dir, config.recording.crf, (config.recording.width, config.recording.height)
+            tools.ffmpeg_exe, recorded, clips_dir, config.recording.crf,
+            (config.recording.width, config.recording.height), cinematic_audio,
         )
 
     name_of = {id(c.pov.moments[0]): c.name for c in clips}
